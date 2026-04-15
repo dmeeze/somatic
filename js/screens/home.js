@@ -24,7 +24,7 @@ export function mountHome(config, onConfigChange) {
   const settingsBtn = document.createElement('button');
   settingsBtn.className = 'settings-btn';
   settingsBtn.setAttribute('aria-label', 'Open settings');
-  settingsBtn.innerHTML = '<i class="fa-solid fa-gear" aria-hidden="true"></i>';
+  settingsBtn.innerHTML = '<i class="fas fa-cog" aria-hidden="true"></i>';
   settingsBtn.addEventListener('click', () => {
     window.location.hash = 'settings';
   });
@@ -59,7 +59,7 @@ export function mountHome(config, onConfigChange) {
   showCardBtn.className = 'show-card-btn';
   showCardBtn.setAttribute('aria-label', 'Show communication card');
   showCardBtn.innerHTML = `
-    <i class="fa-solid fa-id-card" aria-hidden="true"></i>
+    <i class="fas fa-id-card" aria-hidden="true"></i>
     <span>Show</span>
   `;
 
@@ -123,7 +123,7 @@ export function mountHome(config, onConfigChange) {
           const newNeed = {
             id: 'n' + Date.now(),
             label: result.text,
-            icon: 'fa-solid fa-star',
+            icon: 'fas fa-star',
             isSomethingElse: false,
             enabled: true,
           };

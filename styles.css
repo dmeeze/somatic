@@ -854,6 +854,17 @@ ul { list-style: none; }
   font-size: 0.95rem;
   color: var(--text-primary);
 }
+.pref-label-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+}
+.pref-desc {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  line-height: 1.3;
+}
 
 /* Toggle switch */
 .toggle-switch {

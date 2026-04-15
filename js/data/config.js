@@ -11,24 +11,24 @@
 /** @type {import('./types').AppConfig} */
 const DEFAULT_CONFIG = {
   urgencyLevels: [
-    { id: 'u1', label: 'I am happy!',                   icon: 'fa-solid fa-face-smile-beam' },
-    { id: 'u2', label: 'I am ok',                        icon: 'fa-solid fa-face-meh' },
-    { id: 'u3', label: 'I am stressed',                  icon: 'fa-solid fa-face-grimace' },
-    { id: 'u4', label: 'I am about to have a meltdown',  icon: 'fa-solid fa-face-sad-cry' },
-    { id: 'u5', label: 'I am having a meltdown',         icon: 'fa-solid fa-face-dizzy' },
+    { id: 'u1', label: 'I am happy!',                   icon: 'fas fa-smile-beam' },
+    { id: 'u2', label: 'I am ok',                        icon: 'fas fa-meh' },
+    { id: 'u3', label: 'I am stressed',                  icon: 'fas fa-grimace' },
+    { id: 'u4', label: 'I am about to have a meltdown',  icon: 'fas fa-sad-cry' },
+    { id: 'u5', label: 'I am having a meltdown',         icon: 'fas fa-dizzy' },
   ],
 
   defaultUrgencyIndex: 2, // 0-based → "I am stressed"
 
   needs: [
-    { id: 'n1', label: 'I have a question but cannot ask it right now', icon: 'fa-solid fa-circle-question',      isSomethingElse: false, enabled: true },
-    { id: 'n2', label: 'I need a quiet space',                          icon: 'fa-solid fa-ear-deaf',             isSomethingElse: false, enabled: true },
-    { id: 'n3', label: 'I need some time',                              icon: 'fa-solid fa-hourglass-half',       isSomethingElse: false, enabled: true },
-    { id: 'n4', label: 'I need my self-soothing tools',                 icon: 'fa-solid fa-hand-holding-heart',   isSomethingElse: false, enabled: true },
-    { id: 'n5', label: 'I need to contact my parents / carer',          icon: 'fa-solid fa-phone',                isSomethingElse: false, enabled: true },
-    { id: 'n6', label: 'I need water',                                  icon: 'fa-solid fa-droplet',              isSomethingElse: false, enabled: true },
-    { id: 'n7', label: 'I need to move / walk',                         icon: 'fa-solid fa-person-walking',       isSomethingElse: false, enabled: true },
-    { id: 'n8', label: 'Something else\u2026',                          icon: 'fa-solid fa-ellipsis',             isSomethingElse: true,  enabled: true },
+    { id: 'n1', label: 'I have a question but cannot ask it right now', icon: 'fas fa-question-circle',    isSomethingElse: false, enabled: true },
+    { id: 'n2', label: 'I need a quiet space',                          icon: 'fas fa-deaf',               isSomethingElse: false, enabled: true },
+    { id: 'n3', label: 'I need some time',                              icon: 'fas fa-hourglass-half',     isSomethingElse: false, enabled: true },
+    { id: 'n4', label: 'I need my self-soothing tools',                 icon: 'fas fa-hand-holding-heart', isSomethingElse: false, enabled: true },
+    { id: 'n5', label: 'I need to contact my parents / carer',          icon: 'fas fa-phone',              isSomethingElse: false, enabled: true },
+    { id: 'n6', label: 'I need water',                                  icon: 'fas fa-tint',               isSomethingElse: false, enabled: true },
+    { id: 'n7', label: 'I need to move / walk',                         icon: 'fas fa-walking',            isSomethingElse: false, enabled: true },
+    { id: 'n8', label: 'Something else\u2026',                          icon: 'fas fa-ellipsis-h',         isSomethingElse: true,  enabled: true },
   ],
 
   activeThemeId: 'kawaii-pastels',
@@ -64,21 +64,31 @@ const DEFAULT_CONFIG = {
     reduceMotion: false,
     fontSize: 'default',
     keepScreenOn: true,
+    fullIconList: false,
   },
 };
 
 const STORAGE_KEY = 'somatic_config';
+const SCHEMA_VERSION = 2; // bump when DEFAULT_CONFIG shape changes incompatibly
 
 export function getConfig() {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) return JSON.parse(stored);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      // If stored config is from a previous schema version, discard it
+      if (parsed._version !== SCHEMA_VERSION) {
+        localStorage.removeItem(STORAGE_KEY);
+      } else {
+        return parsed;
+      }
+    }
   } catch {}
   return JSON.parse(JSON.stringify(DEFAULT_CONFIG));
 }
 
 export function saveConfig(config) {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(config)); } catch {}
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...config, _version: SCHEMA_VERSION })); } catch {}
 }
 
 export function resetConfig() {

@@ -28,7 +28,7 @@ export function show(urgencyLevel, selectedNeeds, somethingElseText, onClose) {
   const closeTopBtn = document.createElement('button');
   closeTopBtn.className = 'card-close-top';
   closeTopBtn.setAttribute('aria-label', 'Close card');
-  closeTopBtn.innerHTML = '<i class="fa-solid fa-xmark" aria-hidden="true"></i>';
+  closeTopBtn.innerHTML = '<i class="fas fa-times" aria-hidden="true"></i>';
   closeTopBtn.addEventListener('click', hide);
 
   // ── Urgency block ─────────────────────────────────────────────────────────

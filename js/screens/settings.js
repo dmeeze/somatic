@@ -6,6 +6,7 @@
 import { saveConfig, resetConfig, getConfig } from '../data/config.js';
 import { showConfirm } from '../ui/dialog.js';
 import { ICONS } from '../data/icons.js';
+import { ICONS_ALL } from '../data/icons-all.js';
 
 let _config = null;
 let _onConfigChange = null;
@@ -47,7 +48,7 @@ function _render() {
   const backBtn = document.createElement('button');
   backBtn.className = 'settings-back-btn';
   backBtn.setAttribute('aria-label', 'Back to home');
-  backBtn.innerHTML = '<i class="fa-solid fa-arrow-left" aria-hidden="true"></i>';
+  backBtn.innerHTML = '<i class="fas fa-arrow-left" aria-hidden="true"></i>';
   backBtn.addEventListener('click', () => { window.location.hash = 'home'; });
 
   const title = document.createElement('h1');
@@ -172,7 +173,7 @@ function _makeUrgencyRow(level, index) {
   badge.textContent = 'Default';
   badge.style.display = isDefault ? '' : 'none';
 
-  const editBtn = _makeIconBtn('fa-solid fa-pen', 'Edit', () => {
+  const editBtn = _makeIconBtn('fas fa-pen', 'Edit', () => {
     _showEditModal({ label: level.label, icon: level.icon, title: 'Edit Urgency Level' }, (newLabel, newIcon) => {
       const levels = _config.urgencyLevels.map(l =>
         l.id === level.id ? { ...l, label: newLabel, icon: newIcon } : l
@@ -212,9 +213,9 @@ function _renderNeedsSection(container) {
   const addBtn = document.createElement('button');
   addBtn.className = 'settings-add-btn';
   addBtn.disabled = _config.needs.length >= 12;
-  addBtn.innerHTML = '<i class="fa-solid fa-plus" aria-hidden="true"></i> Add need';
+  addBtn.innerHTML = '<i class="fas fa-plus" aria-hidden="true"></i> Add need';
   addBtn.addEventListener('click', () => {
-    _showEditModal({ label: '', icon: 'fa-solid fa-star', title: 'New Need Card' }, (newLabel, newIcon) => {
+    _showEditModal({ label: '', icon: 'fas fa-star', title: 'New Need Card' }, (newLabel, newIcon) => {
       const newNeed = {
         id: 'n' + Date.now(),
         label: newLabel,
@@ -258,7 +259,7 @@ function _makeNeedRow(need, sectionContainer) {
   // Show/hide toggle (not for "Something else")
   if (!need.isSomethingElse) {
     const visBtn = _makeIconBtn(
-      need.enabled ? 'fa-solid fa-eye' : 'fa-solid fa-eye-slash',
+      need.enabled ? 'fas fa-eye' : 'fas fa-eye-slash',
       need.enabled ? 'Hide' : 'Show',
       () => {
         const needs = _config.needs.map(n => n.id === need.id ? { ...n, enabled: !n.enabled } : n);
@@ -271,7 +272,7 @@ function _makeNeedRow(need, sectionContainer) {
   }
 
   // Edit
-  const editBtn = _makeIconBtn('fa-solid fa-pen', 'Edit', () => {
+  const editBtn = _makeIconBtn('fas fa-pen', 'Edit', () => {
     _showEditModal({ label: need.label, icon: need.icon, title: 'Edit Need Card' }, (newLabel, newIcon) => {
       const needs = _config.needs.map(n => n.id === need.id ? { ...n, label: newLabel, icon: newIcon } : n);
       _save({ ..._config, needs });
@@ -282,7 +283,7 @@ function _makeNeedRow(need, sectionContainer) {
 
   // Delete (not for "Something else")
   if (!need.isSomethingElse) {
-    const delBtn = _makeIconBtn('fa-solid fa-trash', 'Delete', async () => {
+    const delBtn = _makeIconBtn('fas fa-trash', 'Delete', async () => {
       const confirmed = await showConfirm({
         title: 'Delete need?',
         message: `Remove "${need.label}" from the grid?`,
@@ -354,6 +355,32 @@ function _renderPrefsSection(container) {
   sizeRow.appendChild(sizeLabel);
   sizeRow.appendChild(sizeBtns);
   sec.appendChild(sizeRow);
+
+  // Full icon list toggle
+  const iconRow = document.createElement('div');
+  iconRow.className = 'pref-row';
+
+  const iconLabel = document.createElement('label');
+  iconLabel.className = 'pref-label';
+  iconLabel.htmlFor = 'full-icon-toggle';
+  iconLabel.textContent = 'Full icon library';
+
+  const iconDesc = document.createElement('span');
+  iconDesc.className = 'pref-desc';
+  iconDesc.textContent = 'Show all 1,853 icons in the picker (use search to find them)';
+
+  const iconLabelWrap = document.createElement('div');
+  iconLabelWrap.className = 'pref-label-wrap';
+  iconLabelWrap.appendChild(iconLabel);
+  iconLabelWrap.appendChild(iconDesc);
+
+  const iconToggle = _makeToggle('full-icon-toggle', _config.ui.fullIconList, (checked) => {
+    _save({ ..._config, ui: { ..._config.ui, fullIconList: checked } });
+  });
+
+  iconRow.appendChild(iconLabelWrap);
+  iconRow.appendChild(iconToggle);
+  sec.appendChild(iconRow);
 }
 
 // ── Reset section ─────────────────────────────────────────────────────────────
@@ -419,7 +446,7 @@ function _renderInstructionsTab(container) {
 
     const placeholder = document.createElement('div');
     placeholder.className = 'instructions-placeholder';
-    placeholder.innerHTML = '<i class="fa-solid fa-film" aria-hidden="true"></i> Video coming soon';
+    placeholder.innerHTML = '<i class="fas fa-film" aria-hidden="true"></i> Video coming soon';
 
     item.appendChild(h3);
     item.appendChild(p);
@@ -433,6 +460,9 @@ function _renderInstructionsTab(container) {
 // ── Icon picker ───────────────────────────────────────────────────────────────
 
 function _showIconPicker(currentIcon, onSelect) {
+  const fullMode = !!_config.ui.fullIconList;
+  const iconList = fullMode ? ICONS_ALL : ICONS;
+
   const overlay = document.createElement('div');
   overlay.className = 'icon-picker-overlay';
 
@@ -444,12 +474,12 @@ function _showIconPicker(currentIcon, onSelect) {
 
   const pickerTitle = document.createElement('div');
   pickerTitle.className = 'icon-picker-title';
-  pickerTitle.textContent = 'Choose icon';
+  pickerTitle.textContent = fullMode ? 'Choose icon — use search to browse' : 'Choose icon';
 
   const search = document.createElement('input');
   search.type = 'search';
   search.className = 'icon-picker-search';
-  search.placeholder = 'Search…';
+  search.placeholder = fullMode ? 'Search 1,853 icons…' : 'Search…';
   search.setAttribute('aria-label', 'Search icons');
 
   pickerHeader.appendChild(pickerTitle);
@@ -460,10 +490,11 @@ function _showIconPicker(currentIcon, onSelect) {
 
   function renderIcons(filter) {
     grid.innerHTML = '';
-    const filtered = filter
-      ? ICONS.filter(i => i.label.includes(filter.toLowerCase()) || i.icon.includes(filter.toLowerCase()))
-      : ICONS;
-    filtered.forEach(({ icon }) => {
+    // In full mode, show nothing until the user types
+    const list = filter
+      ? iconList.filter(i => i.label.includes(filter.toLowerCase()) || i.icon.includes(filter.toLowerCase()))
+      : (fullMode ? [] : iconList);
+    list.forEach(({ icon }) => {
       const btn = document.createElement('button');
       btn.className = 'icon-picker-item' + (icon === currentIcon ? ' active' : '');
       btn.setAttribute('aria-label', icon);
@@ -615,7 +646,7 @@ function _makeDragHandle() {
   const el = document.createElement('span');
   el.className = 'drag-handle';
   el.setAttribute('aria-hidden', 'true');
-  el.innerHTML = '<i class="fa-solid fa-grip-vertical"></i>';
+  el.innerHTML = '<i class="fas fa-grip-vertical"></i>';
   return el;
 }
 
