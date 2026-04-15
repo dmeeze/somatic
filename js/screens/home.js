@@ -7,6 +7,7 @@ import { mountGrid, updateGridSelection, toggleNeedSelection } from '../ui/grid.
 import { showSomethingElseSheet } from '../ui/dialog.js';
 import { saveConfig, getSession, updateSession } from '../data/config.js';
 import { show as showCard } from './card.js';
+import { getLayoutMode } from '../utils/layout.js';
 
 /**
  * Mount the home screen.
@@ -99,9 +100,15 @@ export function mountHome(initialConfig, onConfigChange) {
 
   // ── Mount slider ──────────────────────────────────────────────────────────────
   const session = getSession();
-  mountSlider(sliderContainer, config.urgencyLevels, session.urgencyIndex, (newIndex) => {
-    updateSession({ urgencyIndex: newIndex });
-  });
+  const layoutMode = getLayoutMode();
+  const isLandscape = layoutMode === 'phone-landscape' || layoutMode === 'phone-landscape-compact';
+  mountSlider(
+    sliderContainer,
+    config.urgencyLevels,
+    session.urgencyIndex,
+    (newIndex) => { updateSession({ urgencyIndex: newIndex }); },
+    { vertical: isLandscape }
+  );
 
   // ── Mount needs grid ──────────────────────────────────────────────────────────
   mountGrid(gridContainer, config.needs, getSession(), {
