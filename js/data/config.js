@@ -8,6 +8,8 @@
  *   updateSession(patch) → merge patch into session state
  */
 
+import { BUILT_IN_THEMES } from './themes.js';
+
 /** @type {import('./types').AppConfig} */
 const DEFAULT_CONFIG = {
   urgencyLevels: [
@@ -33,32 +35,7 @@ const DEFAULT_CONFIG = {
 
   activeThemeId: 'kawaii-pastels',
 
-  themes: [
-    {
-      id: 'kawaii-pastels',
-      name: 'Kawaii Pastels',
-      builtIn: true,
-      colors: {
-        pageBg:           '#FFF0F6',
-        surfaceBg:        '#FFFFFF',
-        textPrimary:      '#4A2040',
-        textMuted:        '#9E6580',
-        accentPrimary:    '#FF85B3',
-        accentSecondary:  '#B5DEFF',
-        urgencyGradient:  ['#A8EDCC', '#FFE18A', '#FFBE7A', '#FF9999', '#FF6B8A'],
-        cardBg:           '#3D1035',
-        cardText:         '#FFEEF7',
-        cardAccent:       '#FF85B3',
-      },
-      typography: {
-        pairing: 'friendly',
-        scale: 'large',
-      },
-      shape: {
-        radius: 'round',
-      },
-    },
-  ],
+  themes: BUILT_IN_THEMES,
 
   ui: {
     reduceMotion: false,
@@ -69,7 +46,7 @@ const DEFAULT_CONFIG = {
 };
 
 const STORAGE_KEY = 'somatic_config';
-const SCHEMA_VERSION = 2; // bump when DEFAULT_CONFIG shape changes incompatibly
+const SCHEMA_VERSION = 3; // bump when DEFAULT_CONFIG shape changes incompatibly
 
 export function getConfig() {
   try {

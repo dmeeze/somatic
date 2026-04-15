@@ -31,6 +31,7 @@ function _save(newConfig) {
 const _TABS = [
   { id: 'urgency',      label: 'Urgency' },
   { id: 'needs',        label: 'Needs' },
+  { id: 'theme',        label: 'Theme' },
   { id: 'app',          label: 'App' },
   { id: 'instructions', label: 'Instructions' },
 ];
@@ -91,6 +92,7 @@ function _renderBody(body) {
   switch (_activeTab) {
     case 'urgency':      _renderUrgencySection(body); break;
     case 'needs':        _renderNeedsSection(body); break;
+    case 'theme':        _renderThemeTab(body); break;
     case 'app':          _renderPrefsSection(body); _renderResetSection(body); break;
     case 'instructions': _renderInstructionsTab(body); break;
   }
@@ -407,6 +409,72 @@ function _renderResetSection(container) {
   });
 
   sec.appendChild(btn);
+}
+
+// ── Theme tab ─────────────────────────────────────────────────────────────────
+
+function _renderThemeTab(container) {
+  const wrap = document.createElement('div');
+  wrap.className = 'theme-gallery';
+
+  _config.themes.forEach(theme => {
+    const card = document.createElement('button');
+    card.className = 'theme-card' + (theme.id === _config.activeThemeId ? ' active' : '');
+    card.setAttribute('aria-label', `Select ${theme.name} theme`);
+    card.setAttribute('aria-pressed', theme.id === _config.activeThemeId ? 'true' : 'false');
+
+    // Colour swatch strip
+    const swatch = document.createElement('div');
+    swatch.className = 'theme-swatch';
+    swatch.style.background = theme.colors.pageBg;
+
+    // Accent dot
+    const accent = document.createElement('div');
+    accent.className = 'theme-swatch-accent';
+    accent.style.background = theme.colors.accentPrimary;
+
+    // Gradient bar (urgency colours)
+    const bar = document.createElement('div');
+    bar.className = 'theme-swatch-bar';
+    bar.style.background = `linear-gradient(to right, ${theme.colors.urgencyGradient.join(', ')})`;
+
+    // Card preview strip (mini card)
+    const cardStrip = document.createElement('div');
+    cardStrip.className = 'theme-swatch-card';
+    cardStrip.style.background = theme.colors.cardBg;
+
+    const cardDot = document.createElement('div');
+    cardDot.className = 'theme-swatch-card-dot';
+    cardDot.style.background = theme.colors.cardAccent;
+
+    cardStrip.appendChild(cardDot);
+    swatch.appendChild(accent);
+    swatch.appendChild(bar);
+    swatch.appendChild(cardStrip);
+
+    // Label
+    const name = document.createElement('span');
+    name.className = 'theme-card-name';
+    name.textContent = theme.name;
+
+    // Active tick
+    const tick = document.createElement('span');
+    tick.className = 'theme-card-tick';
+    tick.innerHTML = '<i class="fas fa-check" aria-hidden="true"></i>';
+
+    card.appendChild(swatch);
+    card.appendChild(name);
+    card.appendChild(tick);
+
+    card.addEventListener('click', () => {
+      _save({ ..._config, activeThemeId: theme.id });
+      _reRenderSection();
+    });
+
+    wrap.appendChild(card);
+  });
+
+  container.appendChild(wrap);
 }
 
 // ── Instructions tab ─────────────────────────────────────────────────────────

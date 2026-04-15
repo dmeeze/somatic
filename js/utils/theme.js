@@ -3,9 +3,6 @@
  * Writes all theme CSS custom properties to :root.
  */
 
-/**
- * Map from theme color key to CSS custom property name.
- */
 const COLOR_MAP = {
   pageBg:          '--page-bg',
   surfaceBg:       '--surface-bg',
@@ -24,19 +21,26 @@ const RADIUS_MAP = {
   round: '24px',
 };
 
+const FONT_MAP = {
+  friendly:  { heading: "'Nunito', sans-serif",             body: "'Nunito', sans-serif" },
+  ornate:    { heading: "'Cinzel', serif",                  body: "'Crimson Text', serif" },
+  editorial: { heading: "'Playfair Display', serif",        body: "'Lora', serif" },
+  sport:     { heading: "'Barlow Condensed', sans-serif",   body: "'Barlow', sans-serif" },
+  technical: { heading: "'Exo 2', sans-serif",              body: "'Exo 2', sans-serif" },
+  cosmic:    { heading: "'Orbitron', sans-serif",           body: "'Rajdhani', sans-serif" },
+};
+
 /**
  * Apply a Theme object to the document root's CSS custom properties.
- * @param {object} theme - Theme object from data/themes.js or data/config.js
+ * @param {object} theme
  */
 export function applyTheme(theme) {
   const root = document.documentElement;
-  const { colors, shape } = theme;
+  const { colors, shape, typography } = theme;
 
-  // Named colour slots
+  // Colour slots
   for (const [key, prop] of Object.entries(COLOR_MAP)) {
-    if (colors[key]) {
-      root.style.setProperty(prop, colors[key]);
-    }
+    if (colors[key]) root.style.setProperty(prop, colors[key]);
   }
 
   // Urgency gradient stops
@@ -46,8 +50,13 @@ export function applyTheme(theme) {
     });
   }
 
-  // Shape / radius
+  // Shape
   if (shape?.radius && RADIUS_MAP[shape.radius]) {
     root.style.setProperty('--radius', RADIUS_MAP[shape.radius]);
   }
+
+  // Typography
+  const fonts = FONT_MAP[typography?.pairing] ?? FONT_MAP.friendly;
+  root.style.setProperty('--heading-font', fonts.heading);
+  root.style.setProperty('--body-font', fonts.body);
 }
