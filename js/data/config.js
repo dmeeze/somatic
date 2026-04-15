@@ -46,13 +46,39 @@ const DEFAULT_CONFIG = {
 };
 
 const STORAGE_KEY = 'somatic_config';
-const SCHEMA_VERSION = 3; // bump when DEFAULT_CONFIG shape changes incompatibly
+const SCHEMA_VERSION = 6; // bump when DEFAULT_CONFIG shape changes incompatibly
+
+/**
+ * Migrate a v5 AppConfig to v6.
+ * Change: urgencyGradient on every theme goes from 5-stop to 3-stop [good, mid, bad]
+ * by taking indices [0], [2], [4] from the old array.
+ */
+function _migrateV5toV6(config) {
+  const themes = config.themes.map(theme => {
+    const g = theme.colors?.urgencyGradient;
+    if (!Array.isArray(g) || g.length !== 5) return theme;
+    return {
+      ...theme,
+      colors: {
+        ...theme.colors,
+        urgencyGradient: [g[0], g[2], g[4]],
+      },
+    };
+  });
+  return { ...config, themes };
+}
 
 export function getConfig() {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
       const parsed = JSON.parse(stored);
+      if (parsed._version === 5) {
+        // Migrate v5 → v6 instead of discarding
+        const migrated = _migrateV5toV6(parsed);
+        saveConfig(migrated);
+        return migrated;
+      }
       // If stored config is from a previous schema version, discard it
       if (parsed._version !== SCHEMA_VERSION) {
         localStorage.removeItem(STORAGE_KEY);
