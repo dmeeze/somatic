@@ -8,39 +8,52 @@ import { mountHome } from './screens/home.js';
 import { mountSettings } from './screens/settings.js';
 import { hide as hideCard } from './screens/card.js';
 
-const config = getConfig();
+let config = getConfig();
 
-// Apply the active theme on boot
-const activeTheme = config.themes.find(t => t.id === config.activeThemeId) || config.themes[0];
-applyTheme(activeTheme);
+function applyUIPrefs(prefs) {
+  const sizes = { default: '16px', large: '19px', xlarge: '22px' };
+  document.documentElement.style.fontSize = sizes[prefs.fontSize] || '16px';
+  document.documentElement.classList.toggle('reduce-motion', !!prefs.reduceMotion);
+}
 
-// Mount screens
-mountHome(config);
-mountSettings();
+function onConfigChange(newConfig) {
+  config = newConfig;
+  const theme = config.themes.find(t => t.id === config.activeThemeId) || config.themes[0];
+  applyTheme(theme);
+  applyUIPrefs(config.ui);
+  mountHome(config, onConfigChange);
+}
+
+function boot() {
+  const theme = config.themes.find(t => t.id === config.activeThemeId) || config.themes[0];
+  applyTheme(theme);
+  applyUIPrefs(config.ui);
+  mountHome(config, onConfigChange);
+  mountSettings(config, onConfigChange);
+}
+
+boot();
 
 // ── Hash-based routing ────────────────────────────────────────────────────────
 
 const SCREENS = ['home', 'card', 'settings'];
 
 function navigate(hash) {
-  const target = SCREENS.includes(hash) ? hash : 'home';
-
+  let target = SCREENS.includes(hash) ? hash : 'home';
+  // Card without content (e.g. direct URL load at #card) → go home
+  if (target === 'card' && !document.getElementById('card').hasChildNodes()) {
+    target = 'home';
+    location.replace('#home');
+  }
   SCREENS.forEach(id => {
     const el = document.getElementById(id);
     if (el) el.classList.toggle('active', id === target);
   });
-
-  // If navigating away from card, ensure wake lock is released
-  if (target !== 'card') {
-    hideCard();
-  }
+  if (target !== 'card') hideCard(false);
 }
 
-window.addEventListener('hashchange', () => {
-  navigate(location.hash.replace('#', ''));
-});
+window.addEventListener('hashchange', () => navigate(location.hash.replace('#', '')));
 
-// Resolve initial route
 const initial = location.hash.replace('#', '');
 navigate(initial || 'home');
 if (!location.hash) location.replace('#home');

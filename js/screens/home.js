@@ -4,7 +4,8 @@
 
 import { mountSlider } from '../ui/slider.js';
 import { mountGrid, updateGridSelection, toggleNeedSelection, updateSomethingElseLabel } from '../ui/grid.js';
-import { showCustomNeedDialog } from '../ui/dialog.js';
+import { showSomethingElseSheet } from '../ui/dialog.js';
+import { saveConfig } from '../data/config.js';
 import { getSession, updateSession } from '../data/config.js';
 import { show as showCard } from './card.js';
 
@@ -13,10 +14,11 @@ import { show as showCard } from './card.js';
  *
  * @param {object} config - AppConfig from getConfig()
  */
-export function mountHome(config) {
+export function mountHome(config, onConfigChange) {
   const section = document.getElementById('home');
+  const wasActive = section.classList.contains('active');
   section.innerHTML = '';
-  section.className = 'screen screen--home active';
+  section.className = 'screen screen--home' + (wasActive ? ' active' : '');
 
   // ── Settings button (bottom bar) ─────────────────────────────────────────
   const settingsBtn = document.createElement('button');
@@ -58,7 +60,7 @@ export function mountHome(config) {
   showCardBtn.setAttribute('aria-label', 'Show communication card');
   showCardBtn.innerHTML = `
     <i class="fa-solid fa-id-card" aria-hidden="true"></i>
-    <span>Show Card</span>
+    <span>Show</span>
   `;
 
   // ── Bottom bar: settings + show card ─────────────────────────────────────
@@ -102,7 +104,7 @@ export function mountHome(config) {
         const somethingElseNeed = config.needs.find(n => n.isSomethingElse);
         if (!somethingElseNeed) return;
 
-        // If already selected — deselect and clear text
+        // If already selected — deselect and clear
         if (s.selectedNeedIds.includes(somethingElseNeed.id)) {
           const selected = toggleNeedSelection(somethingElseNeed.id, s.selectedNeedIds);
           updateSession({ selectedNeedIds: selected, somethingElseText: '' });
@@ -111,14 +113,34 @@ export function mountHome(config) {
           return;
         }
 
-        // Not selected — open dialog
-        const text = await showCustomNeedDialog();
-        if (text === null) return;
+        // Open sheet — show disabled needs as chips + text input
+        const disabledNeeds = config.needs.filter(n => !n.enabled && !n.isSomethingElse);
+        const result = await showSomethingElseSheet(disabledNeeds);
+        if (result === null) return;
 
-        const selected = toggleNeedSelection(somethingElseNeed.id, s.selectedNeedIds);
-        updateSession({ selectedNeedIds: selected, somethingElseText: text });
-        updateGridSelection(gridContainer, selected);
-        updateSomethingElseLabel(gridContainer, text);
+        if (result.createNew) {
+          // Persist new need to config, then re-mount so it appears in grid
+          const newNeed = {
+            id: 'n' + Date.now(),
+            label: result.text,
+            icon: 'fa-solid fa-star',
+            isSomethingElse: false,
+            enabled: true,
+          };
+          const newConfig = { ...config, needs: [...config.needs, newNeed] };
+          saveConfig(newConfig);
+          // Pre-select the new need and the Something Else card before re-mount
+          const selected = toggleNeedSelection(somethingElseNeed.id,
+            [...s.selectedNeedIds, newNeed.id]);
+          updateSession({ selectedNeedIds: selected, somethingElseText: result.text });
+          onConfigChange(newConfig);
+        } else {
+          // Existing disabled need — select Something Else card with its label
+          const selected = toggleNeedSelection(somethingElseNeed.id, s.selectedNeedIds);
+          updateSession({ selectedNeedIds: selected, somethingElseText: result.text });
+          updateGridSelection(gridContainer, selected);
+          updateSomethingElseLabel(gridContainer, result.text);
+        }
       },
     }
   );

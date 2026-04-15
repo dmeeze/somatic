@@ -1,14 +1,653 @@
 /**
- * settings.js — Placeholder only. Full implementation in Stage 2.
+ * settings.js — Stage 2: full settings screen.
+ * Urgency level editing, need card editing, UI prefs, factory reset.
  */
 
-export function mountSettings() {
+import { saveConfig, resetConfig, getConfig } from '../data/config.js';
+import { showConfirm } from '../ui/dialog.js';
+import { ICONS } from '../data/icons.js';
+
+let _config = null;
+let _onConfigChange = null;
+let _activeTab = 'urgency';
+
+export function mountSettings(config, onConfigChange) {
+  _config = config;
+  _onConfigChange = onConfigChange;
+  _render();
+}
+
+// ── Save helper ───────────────────────────────────────────────────────────────
+
+function _save(newConfig) {
+  _config = newConfig;
+  saveConfig(newConfig);
+  _onConfigChange(newConfig);
+}
+
+// ── Top-level render ──────────────────────────────────────────────────────────
+
+const _TABS = [
+  { id: 'urgency',      label: 'Urgency' },
+  { id: 'needs',        label: 'Needs' },
+  { id: 'app',          label: 'App' },
+  { id: 'instructions', label: 'Instructions' },
+];
+
+function _render() {
   const section = document.getElementById('settings');
-  section.innerHTML = `
-    <div class="settings-placeholder">
-      <i class="fa-solid fa-gear settings-placeholder-icon" aria-hidden="true"></i>
-      <h2 class="settings-placeholder-title">Settings</h2>
-      <p class="settings-placeholder-msg">Coming in Stage 2.</p>
-    </div>
-  `;
+  const wasActive = section.classList.contains('active');
+  section.innerHTML = '';
+  section.className = 'screen screen--settings' + (wasActive ? ' active' : '');
+
+  // Sticky header
+  const header = document.createElement('div');
+  header.className = 'settings-header';
+
+  const backBtn = document.createElement('button');
+  backBtn.className = 'settings-back-btn';
+  backBtn.setAttribute('aria-label', 'Back to home');
+  backBtn.innerHTML = '<i class="fa-solid fa-arrow-left" aria-hidden="true"></i>';
+  backBtn.addEventListener('click', () => { window.location.hash = 'home'; });
+
+  const title = document.createElement('h1');
+  title.className = 'settings-title';
+  title.textContent = 'Settings';
+
+  header.appendChild(backBtn);
+  header.appendChild(title);
+  section.appendChild(header);
+
+  // Tab bar
+  const tabBar = document.createElement('div');
+  tabBar.className = 'settings-tabs';
+
+  _TABS.forEach(tab => {
+    const btn = document.createElement('button');
+    btn.className = 'settings-tab' + (_activeTab === tab.id ? ' active' : '');
+    btn.textContent = tab.label;
+    btn.dataset.tabId = tab.id;
+    btn.addEventListener('click', () => {
+      _activeTab = tab.id;
+      tabBar.querySelectorAll('.settings-tab').forEach(b =>
+        b.classList.toggle('active', b.dataset.tabId === _activeTab));
+      _renderBody(body);
+    });
+    tabBar.appendChild(btn);
+  });
+  section.appendChild(tabBar);
+
+  // Scrollable body
+  const body = document.createElement('div');
+  body.className = 'settings-body';
+  section.appendChild(body);
+
+  _renderBody(body);
+}
+
+function _renderBody(body) {
+  body.innerHTML = '';
+  switch (_activeTab) {
+    case 'urgency':      _renderUrgencySection(body); break;
+    case 'needs':        _renderNeedsSection(body); break;
+    case 'app':          _renderPrefsSection(body); _renderResetSection(body); break;
+    case 'instructions': _renderInstructionsTab(body); break;
+  }
+}
+
+// ── Urgency section ───────────────────────────────────────────────────────────
+
+function _renderUrgencySection(container) {
+  const sec = _makeSection('urgency-section', 'Urgency Levels');
+  container.appendChild(sec);
+
+  const list = document.createElement('div');
+  list.className = 'settings-list';
+  list.id = 'urgency-list';
+  sec.appendChild(list);
+
+  _config.urgencyLevels.forEach((level, i) => {
+    list.appendChild(_makeUrgencyRow(level, i));
+  });
+
+  // Default level picker
+  const defaultRow = document.createElement('div');
+  defaultRow.className = 'settings-default-row';
+
+  const defaultLabel = document.createElement('label');
+  defaultLabel.className = 'settings-default-label';
+  defaultLabel.textContent = 'Default level:';
+  defaultLabel.htmlFor = 'default-urgency-select';
+
+  const select = document.createElement('select');
+  select.className = 'settings-default-select';
+  select.id = 'default-urgency-select';
+
+  _config.urgencyLevels.forEach((level, i) => {
+    const opt = document.createElement('option');
+    opt.value = i;
+    opt.textContent = level.label;
+    if (i === _config.defaultUrgencyIndex) opt.selected = true;
+    select.appendChild(opt);
+  });
+
+  select.addEventListener('change', () => {
+    _save({ ..._config, defaultUrgencyIndex: parseInt(select.value, 10) });
+  });
+
+  defaultRow.appendChild(defaultLabel);
+  defaultRow.appendChild(select);
+  sec.appendChild(defaultRow);
+
+  // Drag to reorder
+  _initSortable(list, (oldIndex, newIndex) => {
+    const levels = [..._config.urgencyLevels];
+    const defaultId = levels[_config.defaultUrgencyIndex]?.id;
+    const [moved] = levels.splice(oldIndex, 1);
+    levels.splice(newIndex, 0, moved);
+    const newDefaultIndex = Math.max(0, levels.findIndex(l => l.id === defaultId));
+    _save({ ..._config, urgencyLevels: levels, defaultUrgencyIndex: newDefaultIndex });
+    _reRenderSection();
+  });
+}
+
+function _makeUrgencyRow(level, index) {
+  const row = document.createElement('div');
+  row.className = 'settings-row';
+  row.dataset.id = level.id;
+
+  const handle = _makeDragHandle();
+
+  const icon = document.createElement('i');
+  icon.className = `row-icon ${level.icon}`;
+  icon.setAttribute('aria-hidden', 'true');
+
+  const label = document.createElement('span');
+  label.className = 'row-label';
+  label.textContent = level.label;
+
+  const isDefault = index === _config.defaultUrgencyIndex;
+  const badge = document.createElement('span');
+  badge.className = 'row-badge';
+  badge.textContent = 'Default';
+  badge.style.display = isDefault ? '' : 'none';
+
+  const editBtn = _makeIconBtn('fa-solid fa-pen', 'Edit', () => {
+    _showEditModal({ label: level.label, icon: level.icon, title: 'Edit Urgency Level' }, (newLabel, newIcon) => {
+      const levels = _config.urgencyLevels.map(l =>
+        l.id === level.id ? { ...l, label: newLabel, icon: newIcon } : l
+      );
+      _save({ ..._config, urgencyLevels: levels });
+      _reRenderSection('urgency-section');
+    });
+  });
+
+  row.appendChild(handle);
+  row.appendChild(icon);
+  row.appendChild(label);
+  row.appendChild(badge);
+  row.appendChild(editBtn);
+  return row;
+}
+
+// ── Needs section ─────────────────────────────────────────────────────────────
+
+function _renderNeedsSection(container) {
+  // Remove existing if re-rendering
+  const existing = container.querySelector('#needs-section');
+  if (existing) existing.remove();
+
+  const sec = _makeSection('needs-section', 'Need Cards');
+  container.appendChild(sec);
+
+  const list = document.createElement('div');
+  list.className = 'settings-list';
+  list.id = 'needs-list';
+  sec.appendChild(list);
+
+  _config.needs.forEach(need => {
+    list.appendChild(_makeNeedRow(need, container));
+  });
+
+  const addBtn = document.createElement('button');
+  addBtn.className = 'settings-add-btn';
+  addBtn.disabled = _config.needs.length >= 12;
+  addBtn.innerHTML = '<i class="fa-solid fa-plus" aria-hidden="true"></i> Add need';
+  addBtn.addEventListener('click', () => {
+    _showEditModal({ label: '', icon: 'fa-solid fa-star', title: 'New Need Card' }, (newLabel, newIcon) => {
+      const newNeed = {
+        id: 'n' + Date.now(),
+        label: newLabel,
+        icon: newIcon,
+        isSomethingElse: false,
+        enabled: true,
+      };
+      _save({ ..._config, needs: [..._config.needs, newNeed] });
+      _renderNeedsSection(container);
+    });
+  });
+  sec.appendChild(addBtn);
+
+  _initSortable(list, (oldIndex, newIndex) => {
+    const needs = [..._config.needs];
+    const [moved] = needs.splice(oldIndex, 1);
+    needs.splice(newIndex, 0, moved);
+    _save({ ..._config, needs });
+    _renderNeedsSection(container);
+  });
+}
+
+function _makeNeedRow(need, sectionContainer) {
+  const row = document.createElement('div');
+  row.className = 'settings-row' + (need.enabled ? '' : ' row-disabled');
+  row.dataset.id = need.id;
+
+  const handle = _makeDragHandle();
+
+  const icon = document.createElement('i');
+  icon.className = `row-icon ${need.icon}`;
+  icon.setAttribute('aria-hidden', 'true');
+
+  const label = document.createElement('span');
+  label.className = 'row-label';
+  label.textContent = need.label;
+
+  const actions = document.createElement('div');
+  actions.className = 'row-actions';
+
+  // Show/hide toggle (not for "Something else")
+  if (!need.isSomethingElse) {
+    const visBtn = _makeIconBtn(
+      need.enabled ? 'fa-solid fa-eye' : 'fa-solid fa-eye-slash',
+      need.enabled ? 'Hide' : 'Show',
+      () => {
+        const needs = _config.needs.map(n => n.id === need.id ? { ...n, enabled: !n.enabled } : n);
+        _save({ ..._config, needs });
+        _renderNeedsSection(sectionContainer);
+      }
+    );
+    if (!need.enabled) visBtn.classList.add('row-action-muted');
+    actions.appendChild(visBtn);
+  }
+
+  // Edit
+  const editBtn = _makeIconBtn('fa-solid fa-pen', 'Edit', () => {
+    _showEditModal({ label: need.label, icon: need.icon, title: 'Edit Need Card' }, (newLabel, newIcon) => {
+      const needs = _config.needs.map(n => n.id === need.id ? { ...n, label: newLabel, icon: newIcon } : n);
+      _save({ ..._config, needs });
+      _renderNeedsSection(sectionContainer);
+    });
+  });
+  actions.appendChild(editBtn);
+
+  // Delete (not for "Something else")
+  if (!need.isSomethingElse) {
+    const delBtn = _makeIconBtn('fa-solid fa-trash', 'Delete', async () => {
+      const confirmed = await showConfirm({
+        title: 'Delete need?',
+        message: `Remove "${need.label}" from the grid?`,
+        confirmLabel: 'Delete',
+        danger: true,
+      });
+      if (!confirmed) return;
+      const needs = _config.needs.filter(n => n.id !== need.id);
+      _save({ ..._config, needs });
+      _renderNeedsSection(sectionContainer);
+    });
+    delBtn.classList.add('row-action-danger');
+    actions.appendChild(delBtn);
+  }
+
+  row.appendChild(handle);
+  row.appendChild(icon);
+  row.appendChild(label);
+  row.appendChild(actions);
+  return row;
+}
+
+// ── Prefs section ─────────────────────────────────────────────────────────────
+
+function _renderPrefsSection(container) {
+  const sec = _makeSection('prefs-section', 'Preferences');
+  container.appendChild(sec);
+
+  // Reduce motion toggle
+  const motionRow = document.createElement('div');
+  motionRow.className = 'pref-row';
+
+  const motionLabel = document.createElement('label');
+  motionLabel.className = 'pref-label';
+  motionLabel.htmlFor = 'reduce-motion-toggle';
+  motionLabel.textContent = 'Reduce motion';
+
+  const toggle = _makeToggle('reduce-motion-toggle', _config.ui.reduceMotion, (checked) => {
+    _save({ ..._config, ui: { ..._config.ui, reduceMotion: checked } });
+  });
+
+  motionRow.appendChild(motionLabel);
+  motionRow.appendChild(toggle);
+  sec.appendChild(motionRow);
+
+  // Font size
+  const sizeRow = document.createElement('div');
+  sizeRow.className = 'pref-row';
+
+  const sizeLabel = document.createElement('span');
+  sizeLabel.className = 'pref-label';
+  sizeLabel.textContent = 'Text size';
+
+  const sizeBtns = document.createElement('div');
+  sizeBtns.className = 'font-size-btns';
+
+  [['default', 'A'], ['large', 'A+'], ['xlarge', 'A++']].forEach(([value, display]) => {
+    const btn = document.createElement('button');
+    btn.className = 'font-size-btn' + (_config.ui.fontSize === value ? ' active' : '');
+    btn.textContent = display;
+    btn.addEventListener('click', () => {
+      _save({ ..._config, ui: { ..._config.ui, fontSize: value } });
+      sizeBtns.querySelectorAll('.font-size-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    });
+    sizeBtns.appendChild(btn);
+  });
+
+  sizeRow.appendChild(sizeLabel);
+  sizeRow.appendChild(sizeBtns);
+  sec.appendChild(sizeRow);
+}
+
+// ── Reset section ─────────────────────────────────────────────────────────────
+
+function _renderResetSection(container) {
+  const sec = _makeSection('reset-section', '');
+  container.appendChild(sec);
+
+  const btn = document.createElement('button');
+  btn.className = 'settings-reset-btn';
+  btn.textContent = 'Factory Reset';
+  btn.addEventListener('click', async () => {
+    const confirmed = await showConfirm({
+      title: 'Factory reset?',
+      message: 'This will restore all default labels, needs, and settings. Your theme will not be affected.',
+      confirmLabel: 'Reset',
+      danger: true,
+    });
+    if (!confirmed) return;
+    const fresh = resetConfig();
+    _config = fresh;
+    _onConfigChange(fresh);
+    _render();
+  });
+
+  sec.appendChild(btn);
+}
+
+// ── Instructions tab ─────────────────────────────────────────────────────────
+
+function _renderInstructionsTab(container) {
+  const wrap = document.createElement('div');
+  wrap.className = 'instructions-tab';
+
+  const items = [
+    {
+      title: 'Setting urgency levels',
+      body: 'Drag the handles to reorder levels. Tap the pen icon to change the label or icon. Use the Default dropdown to choose which level is pre-selected when the app opens.',
+    },
+    {
+      title: 'Managing need cards',
+      body: 'Tap the eye icon to show or hide a need on the home screen. Hidden needs still appear in the "Something else…" picker. Tap the pen icon to edit, or the bin to delete. Tap "Add need" to create a new one.',
+    },
+    {
+      title: 'Using "Something else…"',
+      body: 'Tap the "Something else…" card on the home screen to pick from hidden needs or type a completely new need. New needs are saved to your list automatically.',
+    },
+    {
+      title: 'Showing the card',
+      body: 'Set the urgency level with the slider, select any needs, then tap "Show Card". Hold the card up for a teacher or carer to read.',
+    },
+  ];
+
+  items.forEach(({ title, body }) => {
+    const item = document.createElement('div');
+    item.className = 'instructions-item';
+
+    const h3 = document.createElement('h3');
+    h3.textContent = title;
+
+    const p = document.createElement('p');
+    p.textContent = body;
+
+    const placeholder = document.createElement('div');
+    placeholder.className = 'instructions-placeholder';
+    placeholder.innerHTML = '<i class="fa-solid fa-film" aria-hidden="true"></i> Video coming soon';
+
+    item.appendChild(h3);
+    item.appendChild(p);
+    item.appendChild(placeholder);
+    wrap.appendChild(item);
+  });
+
+  container.appendChild(wrap);
+}
+
+// ── Icon picker ───────────────────────────────────────────────────────────────
+
+function _showIconPicker(currentIcon, onSelect) {
+  const overlay = document.createElement('div');
+  overlay.className = 'icon-picker-overlay';
+
+  const sheet = document.createElement('div');
+  sheet.className = 'icon-picker-sheet';
+
+  const pickerHeader = document.createElement('div');
+  pickerHeader.className = 'icon-picker-header';
+
+  const pickerTitle = document.createElement('div');
+  pickerTitle.className = 'icon-picker-title';
+  pickerTitle.textContent = 'Choose icon';
+
+  const search = document.createElement('input');
+  search.type = 'search';
+  search.className = 'icon-picker-search';
+  search.placeholder = 'Search…';
+  search.setAttribute('aria-label', 'Search icons');
+
+  pickerHeader.appendChild(pickerTitle);
+  pickerHeader.appendChild(search);
+
+  const grid = document.createElement('div');
+  grid.className = 'icon-picker-grid';
+
+  function renderIcons(filter) {
+    grid.innerHTML = '';
+    const filtered = filter
+      ? ICONS.filter(i => i.label.includes(filter.toLowerCase()) || i.icon.includes(filter.toLowerCase()))
+      : ICONS;
+    filtered.forEach(({ icon }) => {
+      const btn = document.createElement('button');
+      btn.className = 'icon-picker-item' + (icon === currentIcon ? ' active' : '');
+      btn.setAttribute('aria-label', icon);
+      btn.innerHTML = `<i class="${icon}" aria-hidden="true"></i>`;
+      btn.addEventListener('click', () => {
+        document.body.removeChild(overlay);
+        onSelect(icon);
+      });
+      grid.appendChild(btn);
+    });
+  }
+
+  renderIcons('');
+  search.addEventListener('input', () => renderIcons(search.value.trim()));
+
+  // Close on backdrop tap
+  overlay.addEventListener('click', e => {
+    if (e.target === overlay) document.body.removeChild(overlay);
+  });
+
+  sheet.appendChild(pickerHeader);
+  sheet.appendChild(grid);
+  overlay.appendChild(sheet);
+  document.body.appendChild(overlay);
+  requestAnimationFrame(() => search.focus());
+}
+
+// ── Edit modal ────────────────────────────────────────────────────────────────
+
+function _showEditModal({ label, icon, title }, onSave) {
+  let currentIcon = icon;
+
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+
+  const box = document.createElement('div');
+  box.className = 'modal-box';
+  box.setAttribute('role', 'dialog');
+  box.setAttribute('aria-modal', 'true');
+  box.setAttribute('aria-label', title);
+
+  const h2 = document.createElement('h2');
+  h2.className = 'modal-title';
+  h2.textContent = title;
+
+  // Label field
+  const labelGroup = document.createElement('div');
+  labelGroup.className = 'edit-field-group';
+  const labelFieldLabel = document.createElement('label');
+  labelFieldLabel.className = 'edit-field-label';
+  labelFieldLabel.textContent = 'Label';
+  labelFieldLabel.htmlFor = 'edit-label-input';
+  const labelInput = document.createElement('input');
+  labelInput.type = 'text';
+  labelInput.id = 'edit-label-input';
+  labelInput.className = 'edit-text-input';
+  labelInput.value = label;
+  labelInput.maxLength = 80;
+  labelInput.placeholder = 'Enter label…';
+  labelGroup.appendChild(labelFieldLabel);
+  labelGroup.appendChild(labelInput);
+
+  // Icon field
+  const iconGroup = document.createElement('div');
+  iconGroup.className = 'edit-field-group';
+  const iconFieldLabel = document.createElement('label');
+  iconFieldLabel.className = 'edit-field-label';
+  iconFieldLabel.textContent = 'Icon';
+
+  const iconBtn = document.createElement('button');
+  iconBtn.className = 'edit-icon-btn';
+  iconBtn.type = 'button';
+  iconBtn.innerHTML = `<i class="${currentIcon}" aria-hidden="true"></i><span>Change icon…</span>`;
+  iconBtn.addEventListener('click', () => {
+    _showIconPicker(currentIcon, (newIcon) => {
+      currentIcon = newIcon;
+      iconBtn.querySelector('i').className = newIcon;
+      // re-show overlay if it was closed by backdrop
+      if (!overlay.parentNode) document.body.appendChild(overlay);
+    });
+  });
+
+  iconGroup.appendChild(iconFieldLabel);
+  iconGroup.appendChild(iconBtn);
+
+  // Actions
+  const actions = document.createElement('div');
+  actions.className = 'edit-actions';
+
+  const cancelBtn = document.createElement('button');
+  cancelBtn.className = 'btn btn-secondary';
+  cancelBtn.textContent = 'Cancel';
+  cancelBtn.addEventListener('click', () => overlay.remove());
+
+  const saveBtn = document.createElement('button');
+  saveBtn.className = 'btn btn-primary';
+  saveBtn.textContent = 'Save';
+  saveBtn.addEventListener('click', () => {
+    const newLabel = labelInput.value.trim();
+    if (!newLabel) { labelInput.focus(); return; }
+    overlay.remove();
+    onSave(newLabel, currentIcon);
+  });
+
+  actions.appendChild(cancelBtn);
+  actions.appendChild(saveBtn);
+
+  box.appendChild(h2);
+  box.appendChild(labelGroup);
+  box.appendChild(iconGroup);
+  box.appendChild(actions);
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
+  requestAnimationFrame(() => labelInput.focus());
+
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+}
+
+// ── Sortable ──────────────────────────────────────────────────────────────────
+
+function _initSortable(listEl, onReorder) {
+  if (!window.Sortable) return;
+  window.Sortable.create(listEl, {
+    handle: '.drag-handle',
+    animation: 150,
+    ghostClass: 'sortable-ghost',
+    onEnd(evt) {
+      if (evt.oldIndex !== evt.newIndex) onReorder(evt.oldIndex, evt.newIndex);
+    },
+  });
+}
+
+// ── DOM helpers ───────────────────────────────────────────────────────────────
+
+function _makeSection(id, title) {
+  const sec = document.createElement('div');
+  sec.className = 'settings-section';
+  sec.id = id;
+  if (title) {
+    const h = document.createElement('h2');
+    h.className = 'settings-section-title';
+    h.textContent = title;
+    sec.appendChild(h);
+  }
+  return sec;
+}
+
+function _makeDragHandle() {
+  const el = document.createElement('span');
+  el.className = 'drag-handle';
+  el.setAttribute('aria-hidden', 'true');
+  el.innerHTML = '<i class="fa-solid fa-grip-vertical"></i>';
+  return el;
+}
+
+function _makeIconBtn(iconClass, label, onClick) {
+  const btn = document.createElement('button');
+  btn.className = 'row-action-btn';
+  btn.setAttribute('aria-label', label);
+  btn.innerHTML = `<i class="${iconClass}" aria-hidden="true"></i>`;
+  btn.addEventListener('click', onClick);
+  return btn;
+}
+
+function _makeToggle(id, checked, onChange) {
+  const label = document.createElement('label');
+  label.className = 'toggle-switch';
+
+  const input = document.createElement('input');
+  input.type = 'checkbox';
+  input.id = id;
+  input.checked = checked;
+  input.addEventListener('change', () => onChange(input.checked));
+
+  const slider = document.createElement('span');
+  slider.className = 'toggle-slider';
+
+  label.appendChild(input);
+  label.appendChild(slider);
+  return label;
+}
+
+function _reRenderSection() {
+  const body = document.querySelector('.settings-body');
+  if (body) _renderBody(body);
+  else _render();
 }

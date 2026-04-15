@@ -46,11 +46,6 @@ export function show(urgencyLevel, selectedNeeds, somethingElseText, onClose) {
   urgencyBlock.appendChild(urgencyIcon);
   urgencyBlock.appendChild(urgencyLabel);
 
-  // ── Separator ─────────────────────────────────────────────────────────────
-  const sep = document.createElement('hr');
-  sep.className = 'card-separator';
-  sep.setAttribute('aria-hidden', 'true');
-
   // ── Needs list ────────────────────────────────────────────────────────────
   const needsList = document.createElement('ul');
   needsList.className = 'card-needs';
@@ -82,7 +77,6 @@ export function show(urgencyLevel, selectedNeeds, somethingElseText, onClose) {
   // ── Assemble ──────────────────────────────────────────────────────────────
   section.appendChild(closeTopBtn);
   section.appendChild(urgencyBlock);
-  section.appendChild(sep);
   section.appendChild(needsList);
 
   // Stop taps on the card body from doing anything
@@ -97,8 +91,9 @@ export function show(urgencyLevel, selectedNeeds, somethingElseText, onClose) {
 
 /**
  * Hide the communication card and return to home.
+ * Pass navigate=false when called from the router (avoids a redundant hashchange).
  */
-export function hide() {
+export function hide(navigate = true) {
   const section = document.getElementById('card');
   section.removeEventListener('click', _stopBodyClick);
 
@@ -109,7 +104,7 @@ export function hide() {
     _onClose = null;
   }
 
-  window.location.hash = 'home';
+  if (navigate) window.location.hash = 'home';
 }
 
 // ─── Internal helpers ─────────────────────────────────────────────────────────

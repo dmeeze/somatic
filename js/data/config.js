@@ -14,7 +14,7 @@ const DEFAULT_CONFIG = {
     { id: 'u1', label: 'I am happy!',                   icon: 'fa-solid fa-face-smile-beam' },
     { id: 'u2', label: 'I am ok',                        icon: 'fa-solid fa-face-meh' },
     { id: 'u3', label: 'I am stressed',                  icon: 'fa-solid fa-face-grimace' },
-    { id: 'u4', label: 'I am about to have a meltdown',  icon: 'fa-solid fa-face-anxious-sweat' },
+    { id: 'u4', label: 'I am about to have a meltdown',  icon: 'fa-solid fa-face-sad-cry' },
     { id: 'u5', label: 'I am having a meltdown',         icon: 'fa-solid fa-face-dizzy' },
   ],
 
@@ -67,8 +67,22 @@ const DEFAULT_CONFIG = {
   },
 };
 
-// Deep-clone so callers can't mutate the default
+const STORAGE_KEY = 'somatic_config';
+
 export function getConfig() {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) return JSON.parse(stored);
+  } catch {}
+  return JSON.parse(JSON.stringify(DEFAULT_CONFIG));
+}
+
+export function saveConfig(config) {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(config)); } catch {}
+}
+
+export function resetConfig() {
+  try { localStorage.removeItem(STORAGE_KEY); } catch {}
   return JSON.parse(JSON.stringify(DEFAULT_CONFIG));
 }
 
