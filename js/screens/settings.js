@@ -397,7 +397,7 @@ function _renderPrefsSection(container) {
 
   const iconDesc = document.createElement('span');
   iconDesc.className = 'pref-desc';
-  iconDesc.textContent = 'Show all 1,853 icons in the picker (use search to find them)';
+  iconDesc.textContent = 'Show all 1,853 icons in the picker (browse or search)';
 
   const iconLabelWrap = document.createElement('div');
   iconLabelWrap.className = 'pref-label-wrap';
@@ -714,7 +714,7 @@ function _showIconPicker(currentIcon, onSelect) {
 
   const pickerTitle = document.createElement('div');
   pickerTitle.className = 'icon-picker-title';
-  pickerTitle.textContent = fullMode ? 'Choose icon — use search to browse' : 'Choose icon';
+  pickerTitle.textContent = 'Choose icon';
 
   const search = document.createElement('input');
   search.type = 'search';
@@ -730,10 +730,9 @@ function _showIconPicker(currentIcon, onSelect) {
 
   function renderIcons(filter) {
     grid.innerHTML = '';
-    // In full mode, show nothing until the user types
     const list = filter
       ? iconList.filter(i => i.label.includes(filter.toLowerCase()) || i.icon.includes(filter.toLowerCase()))
-      : (fullMode ? [] : iconList);
+      : iconList;
     list.forEach(({ icon }) => {
       const btn = document.createElement('button');
       btn.className = 'icon-picker-item' + (icon === currentIcon ? ' active' : '');
@@ -745,6 +744,9 @@ function _showIconPicker(currentIcon, onSelect) {
       });
       grid.appendChild(btn);
     });
+    // Scroll active icon into view
+    const active = grid.querySelector('.icon-picker-item.active');
+    if (active) active.scrollIntoView({ block: 'center' });
   }
 
   renderIcons('');
