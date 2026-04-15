@@ -621,11 +621,11 @@ All themes pass WCAG AA contrast for body text. Card backgrounds are validated f
 
 ### 9.2 Service Worker
 
-Using **Workbox** (via `vite-plugin-pwa`) with a cache-first strategy for all assets. All fonts, icons (Font Awesome), and app assets are pre-cached on install.
+Hand-written `sw.js`, same pattern as BuzzOff. Cache-first for all assets; cache name includes the git short SHA (injected by the deploy workflow via `sed`) so a new deploy invalidates the old cache automatically.
 
-- App shell cached on first load.
-- Config is in `localStorage` — always up to date.
-- Font Awesome is self-hosted (not CDN) so it is fully offline-capable.
+- All assets (HTML, CSS, JS, fonts, icons, manifest) are pre-cached on install.
+- Config is in `localStorage` — never cached by the SW; always current.
+- Font Awesome and Google Fonts are self-hosted as static WOFF2 files — fully offline from first install.
 
 ### 9.3 Platform Behaviour
 
@@ -640,71 +640,66 @@ A first-visit overlay (dismissable, shown only once) explains installation with 
 
 ---
 
-## 10. Tech Stack Recommendation
+## 10. Tech Stack
 
 | Concern | Choice | Rationale |
 |---|---|---|
-| Framework | **React 18 + TypeScript** | Component model suits the UI; TS catches config shape errors |
-| Build tool | **Vite** | Fast dev server; native ESM |
-| PWA | **vite-plugin-pwa** (Workbox) | Zero-config service worker + manifest injection |
-| Styling | **CSS Modules + CSS custom properties** | Theming via custom properties on `:root`; no runtime CSS-in-JS overhead |
-| Icons | **Font Awesome 6 Free** (self-hosted SVG sprites) | Offline; consistent; well-curated |
-| Fonts | **Fontsource** (npm packages) | Self-hosted Google Fonts; tree-shakeable; offline-safe |
-| State | **React Context + useReducer** | No external state library needed at this scope |
-| Persistence | **localStorage** (via a thin typed wrapper) | Single JSON document; easy import/export |
-| QR generation | **qrcode** (npm, ~10kb) | For theme export QR codes |
-| Drag-to-reorder | **@dnd-kit/core + @dnd-kit/sortable** | Accessible; touch-friendly; no jQuery |
-| Testing | **Vitest + React Testing Library** | Co-located with Vite |
+| Language | **Vanilla HTML / CSS / JS** | No build step; deploy is identical to BuzzOff; nothing to maintain or update |
+| Modules | **Native ES modules** (`<script type="module">`) | Browser-native; no bundler; files are `import`/`export` JS without any tooling |
+| Styling | **CSS custom properties on `:root`** | Theming is a one-liner (`element.style.setProperty`); zero runtime overhead |
+| Icons | **Font Awesome 6 Free** (self-hosted WOFF2 + CSS) | Offline; consistent; no CDN dependency |
+| Fonts | **Self-hosted WOFF2 files** (downloaded at dev time, committed to repo) | Fully offline; no npm; no build step; `@font-face` in CSS |
+| State | **Plain JS object in memory** | A single `appState` object; no library needed at this scale |
+| Persistence | **`localStorage`** | Single JSON blob; trivial read/write |
+| QR generation | **`qrcode-generator`** (standalone JS file, ~10 kb) | No npm; self-hosted; works offline |
+| Drag-to-reorder | **SortableJS** (standalone JS file, ~25 kb) | No framework required; excellent touch support |
+| Service worker | **Hand-written `sw.js`** | Same ~35-line pattern as BuzzOff |
 
-**No server. No auth. No database.** The entire app ships as a static site that can be hosted on GitHub Pages, Netlify, Vercel, or self-hosted on any web server.
+**No framework. No build step. No server. No auth. No database.** The app is a folder of static files deployable anywhere.
 
 ---
 
-## 11. Component Tree (High Level)
+## 11. Module Structure
+
+Screens are plain `<section>` elements in `index.html`; navigation is show/hide via a CSS class. JS is organised as ES modules imported from `app.js`.
 
 ```
-<App>
-  <ThemeProvider>          — injects CSS custom properties from activeTheme
-    <Router>               — hash-based; no server routing needed
-      <HomeScreen>
-        <UrgencySlider />
-        <NeedsGrid>
-          <NeedCard /> × n
-          <SomethingElseCard />
-        </NeedsGrid>
-        <ShowCardButton />
-        <SettingsNavButton />
-      </HomeScreen>
-
-      <CommunicationCard>  — full-screen overlay route
-        <CardUrgency />
-        <CardNeedList />
-        <CloseButton />
-      </CommunicationCard>
-
-      <SettingsScreen>
-        <UrgencyLevelsEditor>
-          <LevelRow />
-          <AddLevelButton />
-        </UrgencyLevelsEditor>
-        <NeedCardsEditor>
-          <NeedRow />
-          <AddNeedButton />
-        </NeedCardsEditor>
-        <ThemeGallery>
-          <ThemeCard />
-          <ThemeEditor />
-          <ThemeImportExport />
-        </ThemeGallery>
-        <UIPrefsEditor />
-      </SettingsScreen>
-    </Router>
-
-    <CustomNeedDialog />    — portal modal, shown on demand
-    <InstallBanner />       — shown on first visit if not installed
-  </ThemeProvider>
-</App>
+app.js                  Entry point. Loads config, applies theme, wires up routing.
+│
+├── screens/home.js     Renders urgency slider + needs grid + show card button.
+│                       Exports: init(), show(), hide()
+│
+├── screens/card.js     Renders the full-screen communication card overlay.
+│                       Exports: show(urgencyLevel, selectedNeeds), hide()
+│
+├── screens/settings.js Renders all settings panels (levels, needs, themes, prefs).
+│                       Exports: init(), show(), hide()
+│
+├── ui/slider.js        Urgency slider widget — wraps <input type="range">,
+│                       draws gradient track, renders tick labels.
+│
+├── ui/grid.js          Needs grid — builds the 4×n card grid, handles selection
+│                       state and the 3-need cap.
+│
+├── ui/dialog.js        Custom need bottom-sheet + generic modal utility.
+│
+├── data/config.js      Single source of truth. Holds appState in memory;
+│                       reads/writes localStorage. Exports: getConfig(),
+│                       saveConfig(), getSession(), updateSession().
+│
+├── data/themes.js      Built-in theme definitions (the 10 themes from §8)
+│                       as plain JS objects.
+│
+└── utils/
+    ├── theme.js        applyTheme(theme) — writes all colour/font/shape tokens
+    │                   to document.documentElement CSS custom properties.
+    ├── serialize.js    exportTheme(theme) → base64 string; importTheme(str) → Theme.
+    └── contrast.js     wcagRatio(hex1, hex2) → number — used in theme editor.
 ```
+
+**Routing** is hash-based (`location.hash`): `#home`, `#card`, `#settings`. Each screen module exports `show()` / `hide()`; `app.js` responds to `hashchange` events.
+
+**No virtual DOM. No diffing.** When config changes (e.g. a need label is edited), the relevant screen module's `render()` function clears and rebuilds only its own DOM section — a cheap operation at this scale.
 
 ---
 
@@ -746,7 +741,7 @@ All open questions have been resolved. These are binding decisions for implement
 | 4 | Theme sharing | **Text code + QR code.** Both mechanisms are available on the export sheet. |
 | 5 | Font pairings | **6 curated pairings, bundled offline via Fontsource.** Themes share pairings where aesthetically compatible (see §8). |
 | 6 | Settings PIN | **No PIN.** Settings require deliberate navigation; no lock needed. |
-| 7 | Font offline strategy | **Bundle all fonts** at install time via Fontsource npm packages. Full offline from first load. |
+| 7 | Font offline strategy | **All fonts shipped as static WOFF2 files** in `fonts/`, committed to the repo. No npm, no build step. Full offline from first install via service worker pre-cache. |
 | 8 | Minimum urgency levels | **Fixed at 5 levels.** No ability to add or remove levels; only labels and icons are editable. |
 
 ### 14.1 Font Pairings (6 total)
@@ -764,56 +759,293 @@ Kawaii Pastels and Bright Sunny share the Friendly pairing but are differentiate
 
 ---
 
-## 15. File Structure (Proposed)
+## 15. File Structure
+
+No build output directory — what you see is what gets deployed.
 
 ```
 somatic/
-├── public/
-│   ├── icons/               # PWA icons (192, 512, 180)
-│   ├── fonts/               # Self-hosted Font Awesome + Google Fonts
-│   └── manifest.json
-├── src/
-│   ├── components/
-│   │   ├── UrgencySlider/
-│   │   ├── NeedsGrid/
-│   │   ├── NeedCard/
-│   │   ├── ShowCardButton/
-│   │   ├── CommunicationCard/
-│   │   ├── CustomNeedDialog/
-│   │   ├── settings/
-│   │   │   ├── UrgencyLevelsEditor/
-│   │   │   ├── NeedCardsEditor/
-│   │   │   ├── ThemeGallery/
-│   │   │   ├── ThemeEditor/
-│   │   │   └── ThemeImportExport/
-│   │   └── shared/          # Button, Modal, IconPicker, DragHandle…
-│   ├── context/
-│   │   ├── AppConfigContext.tsx
-│   │   └── SessionContext.tsx
-│   ├── data/
-│   │   ├── defaultConfig.ts
-│   │   └── builtInThemes.ts
-│   ├── hooks/
-│   │   ├── useWakeLock.ts
-│   │   ├── useHaptic.ts
-│   │   └── useTheme.ts
+├── icons/
+│   ├── icon.svg             # Primary PWA icon
+│   ├── icon-maskable.svg    # Maskable variant (Android)
+│   └── icon-180.png         # iOS home screen icon
+│
+├── fonts/
+│   ├── fontawesome/         # FA 6 Free web fonts + fa-solid.css etc.
+│   ├── nunito/              # Friendly pairing
+│   ├── cinzel/              # Ornate pairing (heading)
+│   ├── crimson-text/        # Ornate pairing (body)
+│   ├── playfair-display/    # Editorial pairing (heading)
+│   ├── lora/                # Editorial pairing (body)
+│   ├── barlow-condensed/    # Sport pairing (heading)
+│   ├── barlow/              # Sport pairing (body)
+│   ├── exo-2/               # Technical pairing
+│   ├── orbitron/            # Cosmic pairing (heading)
+│   └── rajdhani/            # Cosmic pairing (body)
+│
+├── lib/
+│   ├── sortable.min.js      # SortableJS — drag-to-reorder in settings
+│   └── qrcode.min.js        # qrcode-generator — theme export QR codes
+│
+├── js/
+│   ├── app.js               # Entry point; routing; boot sequence
 │   ├── screens/
-│   │   ├── HomeScreen.tsx
-│   │   ├── CommunicationCardScreen.tsx
-│   │   └── SettingsScreen.tsx
-│   ├── types/
-│   │   └── index.ts         # AppConfig, Theme, UrgencyLevel, NeedCard …
-│   ├── utils/
-│   │   ├── storage.ts       # typed localStorage wrapper
-│   │   ├── themeSerializer.ts
-│   │   └── contrast.ts      # WCAG ratio checker for theme editor
-│   ├── App.tsx
-│   ├── main.tsx
-│   └── index.css            # CSS custom properties + global reset
-├── vite.config.ts
-├── package.json
-└── tsconfig.json
+│   │   ├── home.js
+│   │   ├── card.js
+│   │   └── settings.js
+│   ├── ui/
+│   │   ├── slider.js
+│   │   ├── grid.js
+│   │   └── dialog.js
+│   ├── data/
+│   │   ├── config.js
+│   │   └── themes.js
+│   └── utils/
+│       ├── theme.js
+│       ├── serialize.js
+│       └── contrast.js
+│
+├── index.html               # App shell; all three screen sections present,
+│                            # shown/hidden via CSS class
+├── styles.css               # Global reset, layout, CSS custom property tokens,
+│                            # all component styles
+├── sw.js                    # Service worker (hand-written; __VERSION__ placeholder)
+└── manifest.json            # PWA manifest (start_url placeholder for deploy)
 ```
+
+The `fonts/` directory is populated once at dev time by downloading WOFF2 releases from Google Fonts and the Font Awesome free web fonts package, then committed to the repo. They are static assets — no npm, no build step.
+
+## 16. Build & Deployment
+
+### 16.1 Overview
+
+Somatic is deployed to **AWS S3 + CloudFront** using the same GitHub Actions pattern as [BuzzOff](https://github.com/dmeeze/buzzoff). Because Somatic is also vanilla HTML/JS/CSS with no build step, the workflow is **identical in structure to BuzzOff's** — checkout, copy files, inject `<base>` tag and version placeholder with `sed`, sync to S3, invalidate CloudFront.
+
+### 16.2 Branches → Environments
+
+| Branch | Environment | Base path | URL |
+|---|---|---|---|
+| `release` | Production | `/somatic/` | `https://drewmayo.com/somatic/` |
+| `staging` | Staging | `/somatic-staging/` | `https://drewmayo.com/somatic-staging/` |
+
+### 16.3 GitHub Actions Workflow
+
+Location: `.github/workflows/deploy-s3.yml`
+
+Structure is identical to BuzzOff. No `npm ci`, no build step — checkout, prepare publish dir with `sed` substitutions, sync to S3, invalidate CloudFront.
+
+```yaml
+name: Deploy to S3
+
+on:
+  push:
+    branches: [ release, staging ]
+  workflow_dispatch:
+    inputs:
+      base_href:
+        description: 'Base path for deployment (e.g., /somatic/)'
+        required: false
+        default: '/somatic/'
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - production
+          - staging
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4.2.2
+
+      - name: Set deployment variables
+        id: vars
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            BASE_HREF="${{ github.event.inputs.base_href }}"
+            ENVIRONMENT="${{ github.event.inputs.environment }}"
+          elif [ "${{ github.ref }}" = "refs/heads/release" ]; then
+            BASE_HREF="/somatic/"
+            ENVIRONMENT="production"
+          else
+            BASE_HREF="/somatic-staging/"
+            ENVIRONMENT="staging"
+          fi
+          echo "base_href=${BASE_HREF}" >> $GITHUB_OUTPUT
+          echo "environment=${ENVIRONMENT}" >> $GITHUB_OUTPUT
+
+      - name: Prepare publish directory
+        run: |
+          VERSION=$(git rev-parse --short HEAD)
+          BASE_HREF="${{ steps.vars.outputs.base_href }}"
+
+          mkdir -p publish
+          cp -r icons fonts lib js index.html styles.css sw.js manifest.json publish/
+
+          # Inject <base> tag for correct subpath resolution
+          sed -i "s|<head>|<head>\n    <base href=\"${BASE_HREF}\">|" publish/index.html
+
+          # Update manifest.json start_url and scope
+          sed -i "s|\"start_url\": \"./\"|\"start_url\": \"${BASE_HREF}\", \"scope\": \"${BASE_HREF}\"|" publish/manifest.json
+
+          # Inject git SHA as cache-bust version into sw.js
+          sed -i "s|__VERSION__|${VERSION}|g" publish/sw.js
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4.1.0
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Deploy static assets (long cache)
+        run: |
+          SUBDIR=$(echo "${{ steps.vars.outputs.base_href }}" | sed 's|^/||' | sed 's|/$||')
+          aws s3 sync publish/ "s3://${{ secrets.AWS_S3_BUCKET_NAME }}/${SUBDIR}/" \
+            --delete \
+            --cache-control "public, max-age=31536000, immutable" \
+            --exclude "*.html" \
+            --exclude "manifest.json" \
+            --exclude "sw.js"
+
+      - name: Deploy PWA shell files (short cache)
+        run: |
+          SUBDIR=$(echo "${{ steps.vars.outputs.base_href }}" | sed 's|^/||' | sed 's|/$||')
+          aws s3 sync publish/ "s3://${{ secrets.AWS_S3_BUCKET_NAME }}/${SUBDIR}/" \
+            --cache-control "public, max-age=300, must-revalidate" \
+            --include "*.html" \
+            --include "manifest.json" \
+            --include "sw.js"
+
+      - name: Invalidate CloudFront cache
+        run: |
+          SUBDIR=$(echo "${{ steps.vars.outputs.base_href }}" | sed 's|^/||' | sed 's|/$||')
+          aws cloudfront create-invalidation \
+            --distribution-id "${{ secrets.AWS_CLOUDFRONT_DISTRIBUTION_ID }}" \
+            --paths "/${SUBDIR}/*"
+
+      - name: Deploy summary
+        run: |
+          echo "## Deploy Complete" >> $GITHUB_STEP_SUMMARY
+          echo "**Environment:** ${{ steps.vars.outputs.environment }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Base path:** ${{ steps.vars.outputs.base_href }}" >> $GITHUB_STEP_SUMMARY
+          echo "**URL:** https://drewmayo.com${{ steps.vars.outputs.base_href }}" >> $GITHUB_STEP_SUMMARY
+```
+
+### 16.4 Local Development
+
+Open `index.html` directly in a browser, or use any static file server (e.g. `python3 -m http.server`). No dev server, no hot reload, no tooling required. ES modules work fine from `file://` in most browsers, but a local HTTP server avoids any CORS edge cases with font loading.
+
+### 16.5 Cache Strategy Rationale
+
+Without a bundler there are no content-hashed filenames, so JS/CSS files use the same short cache as the HTML. The service worker's version string (git SHA) ensures stale assets are evicted on the next SW update cycle.
+
+| File type | Cache-Control | Reason |
+|---|---|---|
+| `index.html` | `max-age=300` | Entry point; must reflect latest deploy quickly |
+| `manifest.json` | `max-age=300` | PWA installer checks this; stale manifest causes install issues |
+| `sw.js` | `max-age=300` | Browser re-fetches on page load; stale sw.js blocks updates |
+| `js/*.js`, `styles.css` | `max-age=300` | No content hashing; must be re-fetched after deploys |
+| `fonts/`, `icons/`, `lib/` | `max-age=31536000, immutable` | These files never change between deploys; safe to cache forever |
+
+### 16.6 Required GitHub Secrets
+
+Same secrets as BuzzOff — no new AWS infrastructure needed if deploying to the same bucket/distribution:
+
+| Secret | Description |
+|---|---|
+| `AWS_ACCESS_KEY_ID` | IAM user with S3 write + CloudFront invalidation permissions |
+| `AWS_SECRET_ACCESS_KEY` | Corresponding secret |
+| `AWS_REGION` | e.g. `ap-southeast-2` |
+| `AWS_S3_BUCKET_NAME` | Target S3 bucket |
+| `AWS_CLOUDFRONT_DISTRIBUTION_ID` | Distribution serving the bucket |
+
+### 16.7 CloudFront Routing Note
+
+CloudFront must be configured to serve `index.html` for all paths under `/somatic/*` that are not static assets — i.e., a custom error response for 403/404 that serves `index.html` with a 200 status, scoped to the `/somatic/` path prefix. Somatic uses hash-based client-side routing so deep links are not an issue in practice, but the fallback is needed for the PWA start URL.
+
+---
+
+## 17. Development Stages
+
+Each stage produces a fully usable, testable slice of the app. Later stages layer on top without reworking what came before.
+
+---
+
+### Stage 1 — Minimal Working App
+
+**Goal:** a real person can pick an urgency level and a need, and show the card to someone else.
+
+**Includes:**
+- `index.html` app shell with the three screen sections (`#home`, `#card`, `#settings` placeholder)
+- Home screen: urgency slider (5 hard-coded levels), needs grid (hard-coded default cards), Show Card button
+- Communication card full-screen overlay — urgency + up to 3 selected needs displayed; close button only
+- Custom need dialog (Something else… card)
+- 3-need selection cap with FIFO deselection
+- Single built-in theme hard-coded in `styles.css` (Kawaii Pastels as a starting point)
+- No persistence — state is in-memory only; reloading resets everything
+- No settings screen
+- `data/config.js` written with the full data model in place, even though nothing is editable yet — this avoids a rewrite in Stage 2
+
+**Exit criteria:** the core communication loop works end-to-end on a real phone browser.
+
+---
+
+### Stage 2 — Settings: Urgency & Needs Editing
+
+**Goal:** the user (or their carer) can personalise labels, icons, and card order without touching code.
+
+**Includes:**
+- Settings screen wired up (gear icon → `#settings`, back → `#home`)
+- Urgency levels editor: edit label + icon for each of the 5 levels; drag-to-reorder (SortableJS); default level picker
+- Need cards editor: edit label + icon; show/hide toggle; drag-to-reorder; add card (up to 12); delete card (with confirmation)
+- Something else card: label and icon editable, cannot be deleted
+- Icon picker UI (searchable list of curated Font Awesome icons), shared between urgency and needs editors
+- `localStorage` persistence wired into `data/config.js` — all config survives page reload from this stage forward
+- UI prefs: reduce motion toggle, font size selector (default / large / x-large)
+- Factory reset option (restores default config with confirmation)
+
+**Exit criteria:** a carer can sit down, open Settings, customise all labels to match the user's language, and the changes persist across sessions.
+
+---
+
+### Stage 3 — Themes
+
+**Goal:** the user can make the app feel like theirs.
+
+**Includes:**
+- All 6 font pairings downloaded and committed to `fonts/`
+- All 10 built-in themes defined in `data/themes.js`
+- `utils/theme.js` — `applyTheme()` writes all CSS custom property tokens to `:root`
+- Theme gallery in Settings: list of built-in themes + any user themes; tap to apply live
+- Theme editor: colour pickers for all named slots + 5 urgency gradient stops; font pairing selector; shape selector (sharp / soft / round); name field; live preview panel showing home mock and card mock
+- Theme serialisation (`utils/serialize.js`): export to base64 string; import from string with validation and preview before confirming
+- QR code export (`lib/qrcode.min.js`): displayed alongside the text code on the export sheet
+- User-created themes stored in config and persisted in `localStorage`
+
+**Exit criteria:** the user can switch to Dark Gothic, tweak the accent colour, save it as "My Theme", export the code, and import it on a different device.
+
+---
+
+### Stage 4 — Deploy & PWA
+
+**Goal:** the app is installable on any device and works fully offline.
+
+**Includes:**
+- `manifest.json` with correct icons, `start_url`, `display: standalone`
+- PWA icons: `icon.svg`, `icon-maskable.svg`, `icon-180.png`
+- `sw.js` — hand-written cache-first service worker; pre-caches all app assets; `__VERSION__` placeholder for cache busting
+- Service worker registration in `index.html`
+- First-visit install banner: detects `beforeinstallprompt` (Android/desktop) and shows platform-appropriate instructions; dismissed and not shown again
+- Wake Lock API in `card.js` — requests screen-on lock when the card opens; releases on close; degrades silently if unavailable
+- Haptic feedback in `ui/slider.js` — single 10 ms Vibration API pulse per urgency tick; degrades silently
+- `.github/workflows/deploy-s3.yml` — full workflow from §16.3
+- Cross-platform smoke test: iOS Safari (add to home screen), Android Chrome (install prompt), Desktop Chrome (address bar install)
+
+**Exit criteria:** the app installs from `https://drewmayo.com/somatic/`, opens standalone, works with airplane mode on, and the communication card keeps the screen on while being shown.
 
 ---
 
