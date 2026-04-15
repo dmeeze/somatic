@@ -44,7 +44,7 @@ export function mountHome(initialConfig, onConfigChange) {
 
   const needsHeading = document.createElement('h2');
   needsHeading.className = 'home-needs-heading';
-  needsHeading.textContent = 'What do you need?';
+  needsHeading.textContent = 'I want to say';
 
   const gridContainer = document.createElement('div');
   gridContainer.className = 'grid-container';

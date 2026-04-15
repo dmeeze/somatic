@@ -141,6 +141,17 @@ ul { list-style: none; }
   text-transform: uppercase;
   letter-spacing: 0.08em;
   margin-bottom: 10px;
+  text-align: center;
+}
+
+.slider-current-label {
+  font-family: var(--heading-font);
+  font-size: 0.95rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  text-align: center;
+  margin-bottom: 6px;
 }
 
 .show-card-btn {
@@ -180,6 +191,7 @@ ul { list-style: none; }
   height: 48px; /* enough room for the thumb */
   display: flex;
   align-items: center;
+  margin: 0 24px; /* keep thumb touch target clear of region edges */
 }
 
 /* The gradient track */
@@ -342,7 +354,7 @@ ul { list-style: none; }
   justify-content: center;
   gap: 4px;
   padding: 6px 10px;
-  min-height: 56px;
+  height: 72px;
   min-width: 72px;
   background: var(--surface-bg);
   color: var(--text-muted);
@@ -1357,7 +1369,7 @@ body[data-layout="phone-landscape-compact"] .screen--home {
 body[data-layout="phone-landscape"] .home-slider-region,
 body[data-layout="phone-landscape-compact"] .home-slider-region {
   grid-area: slider;
-  padding: 12px 4px;
+  padding: 16px 10px;
   justify-content: center;
   overflow: hidden;
 }
