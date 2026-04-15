@@ -1202,6 +1202,107 @@ ul { list-style: none; }
   animation-duration: 0ms !important;
 }
 
+/* ── Backup & Restore ───────────────────────────────────────── */
+.settings-section-desc {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+  margin-bottom: 12px;
+}
+
+.settings-subsection-label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  margin: 16px 0 8px;
+}
+
+.settings-action-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px;
+  border-radius: var(--radius);
+  background: var(--accent-secondary);
+  color: var(--text-primary);
+  font-size: 0.95rem;
+  font-weight: 600;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.12);
+  transition: filter var(--transition-speed);
+  cursor: pointer;
+  border: none;
+  font-family: inherit;
+  margin-bottom: 12px;
+}
+.settings-action-btn:hover { filter: brightness(1.08); }
+.settings-action-btn:active { filter: brightness(0.95); }
+.settings-action-btn--warning {
+  background: #c0392b;
+  color: #fff;
+}
+
+.backup-import-textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 2px solid var(--accent-secondary);
+  border-radius: calc(var(--radius) * 0.5);
+  background: var(--surface-bg);
+  color: var(--text-primary);
+  font-family: monospace;
+  font-size: 0.78rem;
+  resize: vertical;
+  margin-bottom: 8px;
+}
+.backup-import-textarea:focus {
+  outline: none;
+  border-color: var(--accent-primary);
+}
+
+.backup-import-error {
+  font-size: 0.85rem;
+  color: #c0392b;
+  margin-bottom: 8px;
+}
+
+.backup-undo-row {
+  border-top: 1px solid rgba(0,0,0,0.08);
+  margin-top: 16px;
+  padding-top: 16px;
+}
+
+.backup-undo-note {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+  line-height: 1.4;
+}
+
+/* Snackbar */
+.settings-snackbar {
+  position: fixed;
+  bottom: max(24px, env(safe-area-inset-bottom));
+  left: 50%;
+  transform: translateX(-50%) translateY(16px);
+  background: var(--text-primary);
+  color: var(--page-bg);
+  padding: 10px 20px;
+  border-radius: 24px;
+  font-size: 0.88rem;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+  opacity: 0;
+  transition: opacity 200ms, transform 200ms;
+  z-index: 200;
+  max-width: 90vw;
+  text-align: center;
+  pointer-events: none;
+}
+.settings-snackbar--visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
 /* ── 12. Show Card flash ───────────────────────────────────── */
 @keyframes flashWhite {
   0%   { opacity: 0; }
