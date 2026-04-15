@@ -1,31 +1,30 @@
 /**
  * slider.js — Urgency slider widget.
- *
- * Renders into a container element. Calls onChange(index) when the value changes.
+ * Supports horizontal (default) and vertical orientations.
  */
 
 /**
  * Build and mount the urgency slider.
  *
- * @param {HTMLElement} container - Element to render into
- * @param {object[]} urgencyLevels - Array of { id, label, icon } (exactly 5)
- * @param {number} initialIndex - Starting position (0-based)
- * @param {function(number): void} onChange - Called with new index on change
+ * @param {HTMLElement} container
+ * @param {object[]} urgencyLevels
+ * @param {number} initialIndex
+ * @param {function(number): void} onChange
+ * @param {object} [options]
+ * @param {boolean} [options.vertical=false] - Render as a vertical strip
  */
-export function mountSlider(container, urgencyLevels, initialIndex, onChange) {
+export function mountSlider(container, urgencyLevels, initialIndex, onChange, { vertical = false } = {}) {
   container.innerHTML = '';
   container.classList.add('slider-widget');
+  if (vertical) container.classList.add('slider-widget--vertical');
 
-  // --- Build gradient CSS from urgency colour vars ---
-  const gradientStops = urgencyLevels
-    .map((_, i) => `var(--urgency-${i})`)
-    .join(', ');
+  const gradientStops = urgencyLevels.map((_, i) => `var(--urgency-${i})`).join(', ');
+  const gradientDirection = vertical ? 'to bottom' : 'to right';
 
-  // Wrapper for the track + thumb layer
   const trackWrap = document.createElement('div');
   trackWrap.className = 'slider-track-wrap';
+  if (vertical) trackWrap.classList.add('slider-track-wrap--vertical');
 
-  // The real range input (invisible; handles interaction)
   const input = document.createElement('input');
   input.type = 'range';
   input.min = '0';
@@ -34,84 +33,70 @@ export function mountSlider(container, urgencyLevels, initialIndex, onChange) {
   input.value = String(initialIndex);
   input.className = 'slider-input';
   input.setAttribute('aria-label', 'Urgency level');
+  if (vertical) {
+    input.classList.add('slider-input--vertical');
+    // writing-mode makes range inputs render and interact vertically
+    input.style.writingMode = 'vertical-lr';
+    input.style.direction = 'ltr';
+  }
 
-  // The visual track (gradient bar)
   const track = document.createElement('div');
   track.className = 'slider-track';
-  track.style.background = `linear-gradient(to right, ${gradientStops})`;
+  track.style.background = `linear-gradient(${gradientDirection}, ${gradientStops})`;
 
-  // The visual thumb (icon)
   const thumb = document.createElement('div');
   thumb.className = 'slider-thumb';
 
-  // Tick marks + labels — absolutely positioned to match thumb centres exactly
-  const ticksRow = document.createElement('div');
-  ticksRow.className = 'slider-ticks';
-
-  urgencyLevels.forEach((level, i) => {
-    const pct = urgencyLevels.length > 1
-      ? (i / (urgencyLevels.length - 1)) * 100
-      : 50;
-
-    const tick = document.createElement('div');
-    tick.className = 'slider-tick';
-    if (i === 0) tick.classList.add('slider-tick--first');
-    if (i === urgencyLevels.length - 1) tick.classList.add('slider-tick--last');
-    tick.style.left = `${pct}%`;
-
-    const mark = document.createElement('span');
-    mark.className = 'slider-tick-mark';
-
-    const label = document.createElement('span');
-    label.className = 'slider-tick-label';
-    label.textContent = level.label;
-    label.title = level.label;
-
-    tick.appendChild(mark);
-    tick.appendChild(label);
-    ticksRow.appendChild(tick);
+  urgencyLevels.forEach((_, i) => {
+    const pct = urgencyLevels.length > 1 ? (i / (urgencyLevels.length - 1)) * 100 : 50;
+    const dot = document.createElement('span');
+    dot.className = 'slider-dot';
+    dot.setAttribute('aria-hidden', 'true');
+    if (vertical) {
+      dot.style.top = `${pct}%`;
+      dot.style.left = '50%';
+      dot.style.transform = 'translateX(-50%) translateY(-50%)';
+    } else {
+      dot.style.left = `${pct}%`;
+    }
+    trackWrap.appendChild(dot);
   });
+
+  const currentLabel = document.createElement('span');
+  currentLabel.className = 'slider-current-label';
 
   trackWrap.appendChild(track);
   trackWrap.appendChild(thumb);
   trackWrap.appendChild(input);
-
+  container.appendChild(currentLabel);
   container.appendChild(trackWrap);
-  container.appendChild(ticksRow);
 
-  // --- Update function ---
   function update(index) {
     const level = urgencyLevels[index];
-    const pct = urgencyLevels.length > 1
-      ? (index / (urgencyLevels.length - 1)) * 100
-      : 50;
+    const pct = urgencyLevels.length > 1 ? (index / (urgencyLevels.length - 1)) * 100 : 50;
 
-    // Position thumb
-    thumb.style.left = `${pct}%`;
+    if (vertical) {
+      thumb.style.top = `${pct}%`;
+      thumb.style.left = '50%';
+      thumb.style.transform = 'translateX(-50%) translateY(-50%)';
+    } else {
+      thumb.style.left = `${pct}%`;
+    }
 
-    // Update thumb icon
     thumb.innerHTML = `<i class="${level.icon}" aria-hidden="true"></i>`;
-
-    // Set thumb background to the matching urgency colour
     thumb.style.backgroundColor = `var(--urgency-${index})`;
+    currentLabel.textContent = level.label;
   }
 
-  // --- Event handling ---
   input.addEventListener('input', () => {
     const index = parseInt(input.value, 10);
     update(index);
     onChange(index);
-
-    // Haptic feedback — single 10ms pulse per tick
-    if (navigator.vibrate) {
-      navigator.vibrate(10);
-    }
+    if (navigator.vibrate) navigator.vibrate(10);
   });
 
-  // Initial render
   update(initialIndex);
 
-  // Return a handle to update the slider programmatically
   return {
     setValue(index) {
       input.value = String(index);
