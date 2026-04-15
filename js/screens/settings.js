@@ -152,6 +152,20 @@ function _renderUrgencySection(container) {
     _save({ ..._config, urgencyLevels: levels, defaultUrgencyIndex: newDefaultIndex });
     _reRenderSection();
   });
+
+  // Add level button (disabled at 9 levels)
+  const addBtn = document.createElement('button');
+  addBtn.className = 'settings-add-btn';
+  addBtn.disabled = _config.urgencyLevels.length >= 9;
+  addBtn.innerHTML = '<i class="fas fa-plus" aria-hidden="true"></i> Add level';
+  addBtn.addEventListener('click', () => {
+    _showEditModal({ label: 'New level', icon: 'fas fa-meh', title: 'New Urgency Level' }, (newLabel, newIcon) => {
+      const newLevel = { id: 'u' + Date.now(), label: newLabel, icon: newIcon };
+      _save({ ..._config, urgencyLevels: [..._config.urgencyLevels, newLevel] });
+      _reRenderSection();
+    });
+  });
+  sec.appendChild(addBtn);
 }
 
 function _makeUrgencyRow(level, index) {
@@ -181,15 +195,25 @@ function _makeUrgencyRow(level, index) {
         l.id === level.id ? { ...l, label: newLabel, icon: newIcon } : l
       );
       _save({ ..._config, urgencyLevels: levels });
-      _reRenderSection('urgency-section');
+      _reRenderSection();
     });
   });
+
+  const deleteBtn = _makeIconBtn('fas fa-trash', 'Delete', () => {
+    if (_config.urgencyLevels.length <= 2) return;
+    const levels = _config.urgencyLevels.filter(l => l.id !== level.id);
+    const newDefault = Math.min(_config.defaultUrgencyIndex, levels.length - 1);
+    _save({ ..._config, urgencyLevels: levels, defaultUrgencyIndex: newDefault });
+    _reRenderSection();
+  });
+  if (_config.urgencyLevels.length <= 2) deleteBtn.disabled = true;
 
   row.appendChild(handle);
   row.appendChild(icon);
   row.appendChild(label);
   row.appendChild(badge);
   row.appendChild(editBtn);
+  row.appendChild(deleteBtn);
   return row;
 }
 
@@ -214,7 +238,7 @@ function _renderNeedsSection(container) {
 
   const addBtn = document.createElement('button');
   addBtn.className = 'settings-add-btn';
-  addBtn.disabled = _config.needs.length >= 12;
+  addBtn.disabled = _config.needs.length >= 20;
   addBtn.innerHTML = '<i class="fas fa-plus" aria-hidden="true"></i> Add need';
   addBtn.addEventListener('click', () => {
     _showEditModal({ label: '', icon: 'fas fa-star', title: 'New Need Card' }, (newLabel, newIcon) => {
