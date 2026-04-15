@@ -123,3 +123,89 @@ export function getSession() {
 export function updateSession(patch) {
   _session = { ..._session, ...patch };
 }
+
+// ── Backup / Restore ─────────────────────────────────────────────────────────
+
+const SNAPSHOT_KEY = 'somatic_config_pre_import';
+
+/**
+ * Serialize the full AppConfig to a base64 string for backup.
+ * Strips _version (re-added on restore), excludes session state.
+ * @param {object} config
+ * @returns {string} base64 blob
+ */
+export function serializeConfig(config) {
+  const { _version, ...clean } = config;
+  const payload = { ...clean, _version: SCHEMA_VERSION };
+  return btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
+}
+
+/**
+ * Deserialize a base64 backup blob back to an AppConfig.
+ * Throws a human-readable Error if the blob is invalid or version-mismatched.
+ * @param {string} blob
+ * @returns {object} AppConfig
+ */
+export function deserializeConfig(blob) {
+  let payload;
+  try {
+    payload = JSON.parse(decodeURIComponent(escape(atob(blob.trim()))));
+  } catch {
+    throw new Error('Invalid backup code — could not decode.');
+  }
+  if (!payload || typeof payload !== 'object') {
+    throw new Error('Invalid backup code.');
+  }
+  if (payload._version !== SCHEMA_VERSION) {
+    throw new Error(
+      'This backup was made with a different version of Somatic and can\'t be restored.'
+    );
+  }
+  if (!Array.isArray(payload.urgencyLevels) || !Array.isArray(payload.needs)) {
+    throw new Error('Backup code is missing required data.');
+  }
+  return payload;
+}
+
+/**
+ * Save the current config as a pre-import snapshot (for 48-hour undo).
+ * Overwrites any existing snapshot.
+ * @param {object} config
+ */
+export function savePreImportSnapshot(config) {
+  try {
+    localStorage.setItem(SNAPSHOT_KEY, JSON.stringify({
+      config,
+      timestamp: Date.now(),
+    }));
+  } catch {}
+}
+
+/**
+ * Get the pre-import snapshot if it exists and is less than 48 hours old.
+ * Returns null if no snapshot or snapshot is expired.
+ * Also silently deletes expired snapshots.
+ * @returns {{ config: object, timestamp: number } | null}
+ */
+export function getPreImportSnapshot() {
+  try {
+    const stored = localStorage.getItem(SNAPSHOT_KEY);
+    if (!stored) return null;
+    const snapshot = JSON.parse(stored);
+    const age = Date.now() - snapshot.timestamp;
+    if (age > 48 * 60 * 60 * 1000) {
+      localStorage.removeItem(SNAPSHOT_KEY);
+      return null;
+    }
+    return snapshot;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Clear the pre-import snapshot.
+ */
+export function clearPreImportSnapshot() {
+  try { localStorage.removeItem(SNAPSHOT_KEY); } catch {}
+}
