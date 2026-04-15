@@ -63,13 +63,14 @@ All data lives in `localStorage` under a single `somatic_config` key as a JSON b
 
 ```ts
 interface AppConfig {
-  urgencyLevels: UrgencyLevel[];   // exactly 5 items; fixed count, labels/icons editable
-  defaultUrgencyIndex: number;     // 0–4; which level is selected on session start (default: 2)
-  needs: NeedCard[];               // 1–12 items; exactly one has isSomethingElse: true
+  urgencyLevels: UrgencyLevel[];   // 2–9 items; count, labels, and icons are all editable
+  defaultUrgencyIndex: number;     // 0–(n-1); which level is selected on session start (default: 2)
+  needs: NeedCard[];               // 1–20 items; exactly one has isSomethingElse: true
   maxSelectedNeeds: 3;             // fixed at 3; not user-configurable
   activeThemeId: string;
   themes: Theme[];                 // built-ins + user-created
   ui: UIPrefs;
+  schemaVersion: number;           // incremented on breaking config migrations
 }
 ```
 
@@ -136,8 +137,9 @@ interface Theme {
     // Interactive
     accentPrimary: string;   // buttons, active states
     accentSecondary: string; // secondary actions
-    // Urgency slider gradient — exactly 5 stops regardless of level count
-    urgencyGradient: [string, string, string, string, string]; // low → high
+    // Urgency slider gradient — always exactly 3 stops regardless of level count:
+    // [calm, midpoint, crisis]. Interpolated at render time to N stops.
+    urgencyGradient: [string, string, string]; // low → mid → high
     // Communication card (must pass WCAG AA against white or black text)
     cardBg: string;
     cardText: string;
@@ -168,7 +170,8 @@ Themes are **serialised** by base64-encoding the JSON of the `Theme` object (min
 interface UIPrefs {
   reduceMotion: boolean;
   fontSize: "default" | "large" | "xlarge";
-  keepScreenOn: boolean;  // uses Wake Lock API if available; always active on CommunicationCard
+  keepScreenOn: boolean;    // uses Wake Lock API if available; always active on CommunicationCard
+  fullIconList: boolean;    // when true, icon picker loads all 1,853 FA Pro icons for browsing
   // Note: no PIN protection — settings are openly accessible
 }
 ```
@@ -181,43 +184,52 @@ interface UIPrefs {
 
 ```
 ┌──────────────────────────────┐  ← full viewport height
-│  [⚙]                        │  top-right gear icon (28px touch target padded)
 │                              │
 │  ┌────────────────────────┐  │
-│  │   URGENCY SLIDER  25%  │  │  — see §6.2
+│  │   URGENCY SLIDER  ~25% │  │  — see §6.2 (label: "I AM STRESSED")
 │  └────────────────────────┘  │
 │                              │
 │  ┌────────────────────────┐  │
+│  │   I WANT TO SAY        │  │  ← section heading
 │  │                        │  │
-│  │   NEEDS GRID  50%      │  │  — see §6.3
-│  │   (4 × 3 max)          │  │
+│  │   NEEDS GRID  ~50%     │  │  — see §6.3 (4 × n, max 20 cards)
 │  │                        │  │
 │  └────────────────────────┘  │
 │                              │
-│  ┌────────────────────────┐  │
-│  │   [ SHOW CARD ]  25%   │  │  — see §6.4
-│  └────────────────────────┘  │
+│  ┌──────┬────────────┬─────┐ │
+│  │  ⚙   │ ··· SE     │Show │ │  — bottom bar; see §6.4
+│  └──────┴────────────┴─────┘ │
 └──────────────────────────────┘
 ```
 
-### 6.1b Home Screen — Landscape
+### 6.1b Home Screen — Landscape (phone)
 
 ```
 ┌─────────────────────────────────────────────┐
-│ [⚙]                                         │
 │  ┌──────────────┐  ┌───────────────────────┐│
-│  │              │  │                       ││
-│  │   URGENCY    │  │   NEEDS GRID (4×3)    ││
+│  │  I AM        │  │   I WANT TO SAY       ││
+│  │  STRESSED    │  │                       ││
+│  │   URGENCY    │  │   NEEDS GRID (5×n)    ││
 │  │   SLIDER     │  │                       ││
-│  │  (vertical)  │  │                       ││
-│  │   40% w      │  │   60% w               ││
-│  │              │  ├───────────────────────┤│
-│  │              │  │  [ SHOW CARD ]        ││
+│  │  (vertical)  │  ├───────────────────────┤│
+│  │   ~35% w     │  │  [⚙] [··· SE] [Show] ││
 │  └──────────────┘  └───────────────────────┘│
 └─────────────────────────────────────────────┘
 ```
 
-In landscape, the urgency slider rotates 90° and runs bottom (calm) to top (crisis) — consistent with the spatial metaphor of escalating intensity.
+In landscape, the urgency slider rotates 90° and runs bottom (calm) to top (crisis) — consistent with the spatial metaphor of escalating intensity. Two compact variants exist: `phone-landscape` (≥667 px wide, ≥375 px tall) and `phone-landscape-compact` (shorter screens). Tablet landscape (`tablet-landscape`, ≥1024 px wide) uses the same two-column layout but with a horizontal slider.
+
+### 6.1c Responsive Layout Modes
+
+Five discrete layout modes are detected on boot and on resize/orientation change. The `<body>` element carries a `data-layout` attribute which CSS uses for per-mode overrides.
+
+| Mode | Trigger | Slider orientation |
+|---|---|---|
+| `phone-portrait` | width < 768 px, portrait | horizontal |
+| `phone-landscape` | width ≥ 667 px, height ≥ 375 px, landscape | vertical |
+| `phone-landscape-compact` | width ≥ 667 px, height < 375 px, landscape | vertical |
+| `tablet-portrait` | width ≥ 768 px, portrait | horizontal |
+| `tablet-landscape` | width ≥ 1024 px, landscape | horizontal |
 
 ### 6.2 Urgency Slider Component
 
@@ -232,12 +244,12 @@ In landscape, the urgency slider rotates 90° and runs bottom (calm) to top (cri
   ╚══════════════════════════════╝
 ```
 
-- The track is a **colour gradient** derived from `urgencyGradient[0]` → `urgencyGradient[4]`.
+- The track is a **colour gradient** derived from `urgencyGradient[0]` (calm) → `urgencyGradient[1]` (mid) → `urgencyGradient[2]` (crisis), piecewise-interpolated at render time to produce exactly N colour stops for N urgency levels.
 - The thumb is large (48 × 48 px) with the current icon centred inside it.
 - Tick marks appear at each level position regardless of track length.
 - Labels appear below each tick; they truncate to 2 lines with ellipsis.
-- The current level label is repeated in a prominent display box below the slider so it is clear even at a glance.
-- If only 2 levels are configured the slider becomes a toggle. If 3–5 levels are configured it becomes a stepped slider with snapping.
+- The current level label is repeated in a prominent display box above/beside the slider (matching the "I WANT TO SAY" heading style) so it is clear even at a glance.
+- The slider is a stepped `<input type="range">` with snapping; the step count equals the number of urgency levels (2–9).
 - Dragging gives haptic feedback (Vibration API, single 10ms pulse per tick).
 
 ### 6.3 Needs Grid
@@ -250,29 +262,35 @@ In landscape, the urgency slider rotates 90° and runs bottom (calm) to top (cri
 │ space    │ │ (can't   │ │ time     │ │ soothing │
 │          │ │ ask now) │ │          │ │ tools    │
 └──────────┘ └──────────┘ └──────────┘ └──────────┘
-┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐
-│  📞       │ │  💧       │ │  🚶       │ │  ···     │
-│          │ │          │ │          │ │          │
-│ Contact  │ │ Water    │ │ Move /   │ │Something │
-│ parents  │ │          │ │ walk     │ │ else…    │
-└──────────┘ └──────────┘ └──────────┘ └──────────┘
+┌──────────┐ ┌──────────┐
+│  📞       │ │  💧       │  …up to 20 cards total
+│          │ │          │
+│ Contact  │ │ Water    │
+│ parents  │ │          │
+└──────────┘ └──────────┘
 ```
 
-- Grid is **CSS Grid** `repeat(4, 1fr)` × rows auto-generated, capped at 3 rows (12 cards max).
+- Grid is **CSS Grid** `repeat(4, 1fr)` × rows auto-generated (20 cards max).
 - Each card: icon (Font Awesome, 2rem) on top, label below (max 3 lines, then ellipsis).
 - **Selected state:** card background shifts to `accentPrimary`, icon/text invert or shift to `cardText`.
-- Multiple cards can be selected simultaneously.
-- **Something else card:** tapping it opens the Custom Need Dialog (§6.6) before selecting.
-- If fewer than 12 cards are enabled, the grid still renders as 4 columns; trailing cells are empty.
+- Multiple cards can be selected simultaneously (capped at 3).
+- **"Something else" is not shown in the grid** — it has its own button in the bottom bar (§6.4).
 - On very small screens (< 360px wide) grid collapses to 3 columns.
 
-### 6.4 Show Card Button
+### 6.4 Bottom Bar
 
-- Full-width, prominent, bottom 25% of screen.
-- Label: **"Show Card"** in large bold text + icon `fa-id-card`.
-- **Always enabled** — urgency is always set (defaults to configured default level), so the button is never blocked. The user can tap Show Card immediately without selecting any need.
-- Background colour: `accentPrimary`.
-- Pressing triggers a brief full-screen flash (150ms) then navigates to the Communication Card.
+The bottom bar is a fixed three-slot row at the base of the home screen. All three buttons share the same height (72 px).
+
+```
+┌──────────┬─────────────────────┬──────────────────────────┐
+│   ⚙      │  ···  Something else │  🪪  Show               │
+│ settings │  (or custom label)  │       (full width)       │
+└──────────┴─────────────────────┴──────────────────────────┘
+```
+
+- **Settings button** (left): gear icon; opens `#settings`.
+- **Something Else button** (centre): `···` icon + label. Tapping opens the Custom Need Dialog (§6.6). When selected, button background shifts to `accentPrimary` and label shows the typed text. Tapping again deselects.
+- **Show Card button** (right, dominant): always enabled; triggers a 150 ms full-screen flash then opens the Communication Card. Background: `accentPrimary`.
 
 ### 6.5 Communication Card Screen
 
@@ -332,7 +350,7 @@ Navigation: gear icon on Home → Settings (slide-in transition).
 ### 7.1 Urgency Levels Editor
 
 ```
-  URGENCY LEVELS  (fixed at 5 — edit labels and icons only)
+  URGENCY LEVELS  (2–9 levels; add, remove, reorder, edit)
 
   ≡  😊  I am happy!              [edit]
   ≡  😐  I am ok                  [edit]
@@ -340,32 +358,34 @@ Navigation: gear icon on Home → Settings (slide-in transition).
   ≡  😰  I am about to …          [edit]
   ≡  🌀  I am having a meltdown   [edit]
 
+  [ + Add level ]   (disabled at 9)
+
   Default level: [ I am stressed ▾ ]
 ```
 
-- Levels are **fixed at 5**. There is no add or delete; only labels and icons can be changed.
-- `≡` drag handle for reordering (all 5 can be reordered; the default level follows its item, not its position).
-- Edit opens an inline form: text field + Font Awesome icon picker (searchable list of ~100 curated face/emotion icons).
-- **Default level** dropdown lets the user choose which of the 5 levels is pre-selected at session start. Currently selected default is marked with ★.
+- Level count is **user-configurable from 2 to 9**. Levels can be added and removed.
+- `≡` drag handle for reordering; the default level follows its item, not its position.
+- Edit opens an inline form: text field + Font Awesome icon picker.
+- **Default level** dropdown lets the user choose which level is pre-selected at session start.
 - Changes are live-previewed on the slider at the bottom of the settings screen.
 
 ### 7.2 Need Cards Editor
 
 ```
-  NEED CARDS (1 minimum, 12 maximum)
+  NEED CARDS (1 minimum, 20 maximum)
 
   ≡  🔇  Quiet space              [edit] [🗑] [show/hide]
   ≡  ❓  Question…                [edit] [🗑] [show/hide]
   …
   ≡  ···  Something else…         [edit icon only]
 
-  [+ Add card]   (disabled when 12 cards exist)
+  [+ Add card]   (disabled when 20 cards exist)
 ```
 
 - Same drag-to-reorder pattern.
 - **Show/hide toggle** — hides from grid without deleting (useful for temporarily irrelevant cards).
 - The "Something else" card cannot be deleted or hidden, only have its label and icon edited.
-- Edit form: text field + icon picker (broader icon set: ~200 curated icons across categories).
+- Edit form: text field + icon picker. With **Full icon library** enabled, the picker renders all 1,853 FA icons immediately for browsing; search filters the list. With it off, a curated ~200-icon set is shown.
 
 ### 7.3 Theme Gallery
 
@@ -398,7 +418,7 @@ Navigation: gear icon on Home → Settings (slide-in transition).
 A full-screen editor with:
 - **Name** text field
 - **Colour pickers** for each named colour slot (using native `<input type="color">` plus hex input)
-- **Urgency gradient**: 5 colour stops, each with an individual picker
+- **Urgency gradient**: 3 colour stops (calm / mid / crisis), each with an individual picker
 - **Typography**: dropdown of ~12 font pairings (each pairing is a heading/body pair from Google Fonts)
 - **Shape**: radio group (Sharp / Soft / Round)
 - Live preview panel (scrollable, shows Home screen mock and Card mock)
@@ -411,189 +431,22 @@ A full-screen editor with:
 
 ---
 
-## 8. Built-in Themes (Specifications)
+## 8. Built-in Themes
 
-All themes pass WCAG AA contrast for body text. Card backgrounds are validated for 4.5:1+ contrast ratio against card text.
+Ten built-in themes cover a range of aesthetics. All pass WCAG AA contrast for body text; card backgrounds are validated for 4.5:1+ contrast against card text. Colour values live in `js/data/themes.js`.
 
-### 8.1 Kawaii Pastels
-
-| Token | Value |
-|---|---|
-| `pageBg` | `#FFF0F6` |
-| `surfaceBg` | `#FFFFFF` |
-| `textPrimary` | `#4A2040` |
-| `textMuted` | `#9E6580` |
-| `accentPrimary` | `#FF85B3` |
-| `accentSecondary` | `#B5DEFF` |
-| `urgencyGradient` | `#A8EDCC`, `#FFE18A`, `#FFBE7A`, `#FF9999`, `#FF6B8A` |
-| `cardBg` | `#3D1035` |
-| `cardText` | `#FFEEF7` |
-| `cardAccent` | `#FF85B3` |
-| `pairing` | friendly (Nunito / Nunito) |
-| `scale` | large |
-| `radius` | round |
-
-### 8.2 Dark Gothic
-
-| Token | Value |
-|---|---|
-| `pageBg` | `#0D0A0E` |
-| `surfaceBg` | `#1C1520` |
-| `textPrimary` | `#D4C5DE` |
-| `textMuted` | `#6B5778` |
-| `accentPrimary` | `#8B1A2F` |
-| `accentSecondary` | `#4B0082` |
-| `urgencyGradient` | `#2A1F3D`, `#4B0082`, `#7B1FA2`, `#B71C1C`, `#FF0000` |
-| `cardBg` | `#1C0A12` |
-| `cardText` | `#F5E6FF` |
-| `cardAccent` | `#CC2244` |
-| `pairing` | ornate (Cinzel / Crimson Text) |
-| `scale` | default |
-| `radius` | sharp |
-
-### 8.3 Bright Sunny
-
-| Token | Value |
-|---|---|
-| `pageBg` | `#FFFDE7` |
-| `surfaceBg` | `#FFFFFF` |
-| `textPrimary` | `#1A237E` |
-| `textMuted` | `#5C6BC0` |
-| `accentPrimary` | `#FF8F00` |
-| `accentSecondary` | `#0288D1` |
-| `urgencyGradient` | `#69F0AE`, `#FFEE58`, `#FFA726`, `#EF5350`, `#B71C1C` |
-| `cardBg` | `#0D47A1` |
-| `cardText` | `#FFFFFF` |
-| `cardAccent` | `#FFD600` |
-| `pairing` | friendly (Nunito / Nunito) |
-| `scale` | large |
-| `radius` | round |
-
-### 8.4 Muted Natural
-
-| Token | Value |
-|---|---|
-| `pageBg` | `#F5F0E8` |
-| `surfaceBg` | `#EDE8DC` |
-| `textPrimary` | `#2C2416` |
-| `textMuted` | `#6B5E42` |
-| `accentPrimary` | `#4E6B3A` |
-| `accentSecondary` | `#8D6E4A` |
-| `urgencyGradient` | `#A5C98A`, `#D4C87A`, `#C4A05A`, `#B06040`, `#8B2020` |
-| `cardBg` | `#2C3A1E` |
-| `cardText` | `#F0EBD8` |
-| `cardAccent` | `#8DC870` |
-| `pairing` | editorial (Playfair Display / Lora) |
-| `scale` | default |
-| `radius` | soft |
-
-### 8.5 Medieval Fantasy
-
-| Token | Value |
-|---|---|
-| `pageBg` | `#1A1208` |
-| `surfaceBg` | `#2C1F0E` |
-| `textPrimary` | `#E8D5A0` |
-| `textMuted` | `#A0885A` |
-| `accentPrimary` | `#C8A020` |
-| `accentSecondary` | `#8B2020` |
-| `urgencyGradient` | `#2A5C2A`, `#6B8B20`, `#C8A020`, `#C84820`, `#8B0000` |
-| `cardBg` | `#0E0A02` |
-| `cardText` | `#F0E0A0` |
-| `cardAccent` | `#D4AF37` |
-| `pairing` | ornate (Cinzel / Crimson Text) |
-| `scale` | default |
-| `radius` | sharp |
-
-### 8.6 Literary
-
-| Token | Value |
-|---|---|
-| `pageBg` | `#F8F0E3` |
-| `surfaceBg` | `#EDE0C8` |
-| `textPrimary` | `#2B1B0E` |
-| `textMuted` | `#7A5C3A` |
-| `accentPrimary` | `#6B2020` |
-| `accentSecondary` | `#3A5C6B` |
-| `urgencyGradient` | `#D4E8C8`, `#E8D8A0`, `#D4A860`, `#C06040`, `#8B1A1A` |
-| `cardBg` | `#2B1B0E` |
-| `cardText` | `#F8F0E3` |
-| `cardAccent` | `#C8A040` |
-| `pairing` | editorial (Playfair Display / Lora) |
-| `scale` | default |
-| `radius` | sharp |
-
-### 8.7 Athletic
-
-| Token | Value |
-|---|---|
-| `pageBg` | `#F5F5F5` |
-| `surfaceBg` | `#FFFFFF` |
-| `textPrimary` | `#111111` |
-| `textMuted` | `#555555` |
-| `accentPrimary` | `#E53935` |
-| `accentSecondary` | `#1565C0` |
-| `urgencyGradient` | `#43A047`, `#FDD835`, `#FB8C00`, `#E53935`, `#880E4F` |
-| `cardBg` | `#111111` |
-| `cardText` | `#FFFFFF` |
-| `cardAccent` | `#E53935` |
-| `pairing` | sport (Barlow Condensed / Barlow) |
-| `scale` | default |
-| `radius` | sharp |
-
-### 8.8 Aircraft
-
-| Token | Value |
-|---|---|
-| `pageBg` | `#EAF4FB` |
-| `surfaceBg` | `#FFFFFF` |
-| `textPrimary` | `#0D2137` |
-| `textMuted` | `#4A6880` |
-| `accentPrimary` | `#1565C0` |
-| `accentSecondary` | `#00838F` |
-| `urgencyGradient` | `#80DEEA`, `#80CBC4`, `#FFD54F`, `#FF8A65`, `#EF5350` |
-| `cardBg` | `#0D2137` |
-| `cardText` | `#E8F4FD` |
-| `cardAccent` | `#40C4FF` |
-| `pairing` | technical (Exo 2 / Exo 2) |
-| `scale` | default |
-| `radius` | soft |
-
-### 8.9 Space
-
-| Token | Value |
-|---|---|
-| `pageBg` | `#050816` |
-| `surfaceBg` | `#0D1530` |
-| `textPrimary` | `#E8EEFF` |
-| `textMuted` | `#6A82B4` |
-| `accentPrimary` | `#7C4DFF` |
-| `accentSecondary` | `#00BCD4` |
-| `urgencyGradient` | `#1A237E`, `#4527A0`, `#880E4F`, `#C62828`, `#FF1744` |
-| `cardBg` | `#020410` |
-| `cardText` | `#E8EEFF` |
-| `cardAccent` | `#7C4DFF` |
-| `pairing` | cosmic (Orbitron / Rajdhani) |
-| `scale` | default |
-| `radius` | sharp |
-
-### 8.10 Science
-
-| Token | Value |
-|---|---|
-| `pageBg` | `#F5F9FF` |
-| `surfaceBg` | `#FFFFFF` |
-| `textPrimary` | `#0A1628` |
-| `textMuted` | `#4A6080` |
-| `accentPrimary` | `#0077B6` |
-| `accentSecondary` | `#2DC653` |
-| `urgencyGradient` | `#00B4D8`, `#90E0EF`, `#FFB703`, `#FB8500`, `#D62828` |
-| `cardBg` | `#0A1628` |
-| `cardText` | `#E8F4FF` |
-| `cardAccent` | `#00B4D8` |
-| `pairing` | technical (Exo 2 / Exo 2) |
-| `scale` | default |
-| `radius` | soft |
+| # | Name | Pairing | Radius |
+|---|---|---|---|
+| 1 | Kawaii Pastels | Friendly (Nunito) | round |
+| 2 | Dark Gothic | Ornate (Cinzel / Crimson Text) | sharp |
+| 3 | Bright Sunny | Friendly (Nunito) | round |
+| 4 | Muted Natural | Editorial (Playfair Display / Lora) | soft |
+| 5 | Medieval Fantasy | Ornate (Cinzel / Crimson Text) | sharp |
+| 6 | Literary | Editorial (Playfair Display / Lora) | sharp |
+| 7 | Athletic | Sport (Barlow Condensed / Barlow) | sharp |
+| 8 | Aircraft | Technical (Exo 2) | soft |
+| 9 | Space | Cosmic (Orbitron / Rajdhani) | sharp |
+| 10 | Science | Technical (Exo 2) | soft |
 
 ---
 
@@ -691,9 +544,11 @@ app.js                  Entry point. Loads config, applies theme, wires up routi
 │                       as plain JS objects.
 │
 └── utils/
-    ├── theme.js        applyTheme(theme) — writes all colour/font/shape tokens
-    │                   to document.documentElement CSS custom properties.
+    ├── theme.js        applyTheme(theme, urgencyCount) — writes all colour/font/shape
+    │                   tokens to :root; interpolates 3-stop urgencyGradient to N stops.
     ├── serialize.js    exportTheme(theme) → base64 string; importTheme(str) → Theme.
+    ├── layout.js       getLayoutMode() → one of 5 mode strings; setLayoutMode() sets
+    │                   data-layout on <body>.
     └── contrast.js     wcagRatio(hex1, hex2) → number — used in theme editor.
 ```
 
@@ -725,7 +580,7 @@ app.js                  Entry point. Loads config, applies theme, wires up routi
 - The app state is therefore ephemeral per-use — configuration is persistent, current selections are not.
 - No login, no history, no logs of what was communicated. Privacy by design.
 - **Need selection cap**: at most 3 needs can be selected simultaneously. Selecting a 4th deselects the oldest selection (FIFO), with a brief visual indicator explaining the cap on first occurrence.
-- **Urgency levels**: fixed at exactly 5; labels and icons are editable but levels cannot be added or removed.
+- **Urgency levels**: configurable from 2 to 9; add, remove, reorder, and edit labels/icons freely.
 
 ---
 
@@ -742,7 +597,7 @@ All open questions have been resolved. These are binding decisions for implement
 | 5 | Font pairings | **6 curated pairings, bundled offline via Fontsource.** Themes share pairings where aesthetically compatible (see §8). |
 | 6 | Settings PIN | **No PIN.** Settings require deliberate navigation; no lock needed. |
 | 7 | Font offline strategy | **All fonts shipped as static WOFF2 files** in `fonts/`, committed to the repo. No npm, no build step. Full offline from first install via service worker pre-cache. |
-| 8 | Minimum urgency levels | **Fixed at 5 levels.** No ability to add or remove levels; only labels and icons are editable. |
+| 8 | Urgency level count | **Configurable from 2 to 9.** Labels, icons, count, and order are all editable. |
 
 ### 14.1 Font Pairings (6 total)
 
@@ -803,6 +658,7 @@ somatic/
 │   └── utils/
 │       ├── theme.js
 │       ├── serialize.js
+│       ├── layout.js
 │       └── contrast.js
 │
 ├── index.html               # App shell; all three screen sections present,
