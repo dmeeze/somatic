@@ -19,14 +19,14 @@ function applyUIPrefs(prefs) {
 function onConfigChange(newConfig) {
   config = newConfig;
   const theme = config.themes.find(t => t.id === config.activeThemeId) || config.themes[0];
-  applyTheme(theme);
+  applyTheme(theme, config.urgencyLevels.length);
   applyUIPrefs(config.ui);
   mountHome(config, onConfigChange);
 }
 
 function boot() {
   const theme = config.themes.find(t => t.id === config.activeThemeId) || config.themes[0];
-  applyTheme(theme);
+  applyTheme(theme, config.urgencyLevels.length);
   applyUIPrefs(config.ui);
   mountHome(config, onConfigChange);
   mountSettings(config, onConfigChange);
