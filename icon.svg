@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!-- Speech bubble -->
+  <rect x="8" y="8" width="76" height="58" rx="14" fill="#FF85B3"/>
+  <polygon points="22,66 14,82 38,66" fill="#FF85B3"/>
+  <!-- Heart -->
+  <path d="M50 48 C50 48 30 38 30 27 C30 21 35 17 40 20 C44 22 48 26 50 29 C52 26 56 22 60 20 C65 17 70 21 70 27 C70 38 50 48 50 48Z" fill="#3D1035"/>
+</svg>

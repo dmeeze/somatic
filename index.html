@@ -7,6 +7,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>Somatic</title>
+  <link rel="manifest" href="manifest.json">
 
   <!-- Google Fonts — all 6 theme pairings -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -31,5 +32,10 @@
   <section id="settings" class="screen screen--settings" aria-label="Settings"></section>
 
   <script type="module" src="js/app.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('./sw.js');
+    }
+  </script>
 </body>
 </html>
