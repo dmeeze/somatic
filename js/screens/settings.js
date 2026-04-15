@@ -3,7 +3,11 @@
  * Urgency level editing, need card editing, UI prefs, factory reset.
  */
 
-import { saveConfig, resetConfig, getConfig } from '../data/config.js';
+import {
+  saveConfig, resetConfig, getConfig,
+  serializeConfig, deserializeConfig,
+  savePreImportSnapshot, getPreImportSnapshot, clearPreImportSnapshot,
+} from '../data/config.js';
 import { showConfirm } from '../ui/dialog.js';
 import { ICONS } from '../data/icons.js';
 import { ICONS_ALL } from '../data/icons-all.js';
@@ -93,7 +97,7 @@ function _renderBody(body) {
     case 'urgency':      _renderUrgencySection(body); break;
     case 'needs':        _renderNeedsSection(body); break;
     case 'theme':        _renderThemeTab(body); break;
-    case 'app':          _renderPrefsSection(body); _renderResetSection(body); break;
+    case 'app':          _renderBackupSection(body); _renderPrefsSection(body); _renderResetSection(body); break;
     case 'instructions': _renderInstructionsTab(body); break;
   }
 }
@@ -407,6 +411,150 @@ function _renderPrefsSection(container) {
   iconRow.appendChild(iconLabelWrap);
   iconRow.appendChild(iconToggle);
   sec.appendChild(iconRow);
+}
+
+// ── Snackbar helper ───────────────────────────────────────────────────────────
+
+function _showSnackbar(message, durationMs = 3000) {
+  const existing = document.querySelector('.settings-snackbar');
+  if (existing) existing.remove();
+  const bar = document.createElement('div');
+  bar.className = 'settings-snackbar';
+  bar.textContent = message;
+  document.body.appendChild(bar);
+  // Trigger animation
+  requestAnimationFrame(() => bar.classList.add('settings-snackbar--visible'));
+  setTimeout(() => {
+    bar.classList.remove('settings-snackbar--visible');
+    setTimeout(() => bar.remove(), 300);
+  }, durationMs);
+}
+
+// ── Backup & Restore section ──────────────────────────────────────────────────
+
+function _renderBackupSection(container) {
+  const sec = _makeSection('backup-section', 'Backup & Restore');
+  container.appendChild(sec);
+
+  // ── Export ─────────────────────────────────────────────────────────────────
+  const exportDesc = document.createElement('p');
+  exportDesc.className = 'settings-section-desc';
+  exportDesc.textContent = 'Save all your settings — urgency levels, needs, themes, and preferences.';
+  sec.appendChild(exportDesc);
+
+  const exportBtn = document.createElement('button');
+  exportBtn.className = 'settings-action-btn';
+  exportBtn.innerHTML = '<i class="fas fa-share-square" aria-hidden="true"></i> Back up settings';
+  exportBtn.addEventListener('click', async () => {
+    const blob = serializeConfig(_config);
+    const shareData = {
+      title: 'Somatic backup',
+      text: blob,
+    };
+    if (navigator.share && navigator.canShare && navigator.canShare(shareData)) {
+      try {
+        await navigator.share(shareData);
+        return;
+      } catch (e) {
+        if (e.name === 'AbortError') return; // user cancelled — don't fall through
+      }
+    }
+    // Clipboard fallback
+    try {
+      await navigator.clipboard.writeText(blob);
+      _showSnackbar('Backup code copied — paste it anywhere to save.');
+    } catch {
+      _showSnackbar('Could not copy. Open DevTools console and run: copy(somatic_backup)', 5000);
+      window.somatic_backup = blob;
+    }
+  });
+  sec.appendChild(exportBtn);
+
+  // ── Import ─────────────────────────────────────────────────────────────────
+  const importHeading = document.createElement('p');
+  importHeading.className = 'settings-subsection-label';
+  importHeading.textContent = 'Restore from backup';
+  sec.appendChild(importHeading);
+
+  const textarea = document.createElement('textarea');
+  textarea.className = 'backup-import-textarea';
+  textarea.placeholder = 'Paste backup code here…';
+  textarea.rows = 4;
+  sec.appendChild(textarea);
+
+  const importError = document.createElement('p');
+  importError.className = 'backup-import-error';
+  importError.style.display = 'none';
+  sec.appendChild(importError);
+
+  const importBtn = document.createElement('button');
+  importBtn.className = 'settings-action-btn';
+  importBtn.innerHTML = '<i class="fas fa-upload" aria-hidden="true"></i> Restore';
+  importBtn.addEventListener('click', async () => {
+    importError.style.display = 'none';
+    const blob = textarea.value.trim();
+    if (!blob) {
+      importError.textContent = 'Please paste a backup code first.';
+      importError.style.display = '';
+      return;
+    }
+    let restored;
+    try {
+      restored = deserializeConfig(blob);
+    } catch (e) {
+      importError.textContent = e.message;
+      importError.style.display = '';
+      return;
+    }
+    const confirmed = await showConfirm({
+      title: 'Restore settings?',
+      message: 'This will replace all your current settings. Your current settings will be saved for 48 hours so you can undo.',
+    });
+    if (!confirmed) return;
+    savePreImportSnapshot(_config);
+    saveConfig(restored);
+    location.reload();
+  });
+  sec.appendChild(importBtn);
+
+  // ── Undo ───────────────────────────────────────────────────────────────────
+  const snapshot = getPreImportSnapshot();
+  if (snapshot) {
+    const undoDiv = document.createElement('div');
+    undoDiv.className = 'backup-undo-row';
+
+    const expiresAt = new Date(snapshot.timestamp + 48 * 60 * 60 * 1000);
+    const timeStr = expiresAt.toLocaleString(undefined, {
+      month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+    });
+
+    const undoNote = document.createElement('p');
+    undoNote.className = 'backup-undo-note';
+    undoNote.textContent = `Previous settings saved — undo available until ${timeStr}.`;
+    undoDiv.appendChild(undoNote);
+
+    const undoBtn = document.createElement('button');
+    undoBtn.className = 'settings-action-btn settings-action-btn--warning';
+    undoBtn.innerHTML = '<i class="fas fa-undo" aria-hidden="true"></i> Undo last restore';
+    undoBtn.addEventListener('click', async () => {
+      const confirmed = await showConfirm({
+        title: 'Undo restore?',
+        message: 'This will go back to your settings from before the last restore.',
+      });
+      if (!confirmed) return;
+      const snap = getPreImportSnapshot();
+      if (!snap) {
+        _showSnackbar('Undo period has expired.');
+        _reRenderSection();
+        return;
+      }
+      saveConfig(snap.config);
+      clearPreImportSnapshot();
+      location.reload();
+    });
+    undoDiv.appendChild(undoBtn);
+    sec.appendChild(undoDiv);
+  }
 }
 
 // ── Reset section ─────────────────────────────────────────────────────────────
