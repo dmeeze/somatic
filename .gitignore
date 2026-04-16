@@ -3,3 +3,6 @@ fa-pro/
 
 # macOS
 .DS_Store
+.playwright-mcp
+.superpowers
+node_modules
