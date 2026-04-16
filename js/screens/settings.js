@@ -97,7 +97,7 @@ function _renderBody(body) {
     case 'urgency':      _renderUrgencySection(body); break;
     case 'needs':        _renderNeedsSection(body); break;
     case 'theme':        _renderThemeTab(body); break;
-    case 'app':          _renderBackupSection(body); _renderPrefsSection(body); _renderResetSection(body); break;
+    case 'app':          _renderBackupSection(body); _renderPrefsSection(body); _renderResetSection(body); _renderVersionFooter(body); break;
     case 'instructions': _renderInstructionsTab(body); break;
   }
 }
@@ -581,6 +581,17 @@ function _renderResetSection(container) {
   });
 
   sec.appendChild(btn);
+}
+
+// ── Version footer ────────────────────────────────────────────────────────────
+
+function _renderVersionFooter(container) {
+  const version = window.APP_VERSION || 'dev';
+  const date    = window.APP_BUILD_DATE || '';
+  const p = document.createElement('p');
+  p.className = 'settings-version-footer';
+  p.textContent = date ? `Version ${version} — ${date}` : `Version ${version}`;
+  container.appendChild(p);
 }
 
 // ── Theme tab ─────────────────────────────────────────────────────────────────

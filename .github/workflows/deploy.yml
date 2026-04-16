@@ -68,8 +68,10 @@ jobs:
         # Update manifest start_url and scope
         sed -i "s|\"start_url\": \"./\"|\"start_url\": \"${BASE_HREF}\", \"scope\": \"${BASE_HREF}\"|" publish/manifest.json
 
-        # Replace version placeholder in sw.js
-        sed -i "s|__VERSION__|${VERSION}|g" publish/sw.js
+        # Replace version and build date placeholders
+        BUILD_DATE=$(date -u +"%Y-%m-%d")
+        sed -i "s|__VERSION__|${VERSION}|g" publish/sw.js publish/index.html
+        sed -i "s|__BUILD_DATE__|${BUILD_DATE}|g" publish/index.html
 
         echo "Publish directory contents:"
         find publish -type f | sort

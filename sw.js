@@ -1,26 +1,28 @@
 const CACHE = 'somatic-__VERSION__';
 
+const V = '__VERSION__';
+
 const ASSETS = [
   './',
-  './index.html',
-  './styles.css',
+  `./index.html?v=${V}`,
+  `./styles.css?v=${V}`,
   './manifest.json',
   './icon.svg',
   './icon-maskable.svg',
-  './js/app.js',
-  './js/screens/home.js',
-  './js/screens/card.js',
-  './js/screens/settings.js',
-  './js/ui/slider.js',
-  './js/ui/grid.js',
-  './js/ui/dialog.js',
-  './js/data/config.js',
-  './js/data/themes.js',
-  './js/data/icons.js',
-  './js/data/icons-all.js',
-  './js/utils/theme.js',
-  './js/utils/contrast.js',
-  './js/utils/serialize.js',
+  `./js/app.js?v=${V}`,
+  `./js/screens/home.js?v=${V}`,
+  `./js/screens/card.js?v=${V}`,
+  `./js/screens/settings.js?v=${V}`,
+  `./js/ui/slider.js?v=${V}`,
+  `./js/ui/grid.js?v=${V}`,
+  `./js/ui/dialog.js?v=${V}`,
+  `./js/data/config.js?v=${V}`,
+  `./js/data/themes.js?v=${V}`,
+  `./js/data/icons.js?v=${V}`,
+  `./js/data/icons-all.js?v=${V}`,
+  `./js/utils/theme.js?v=${V}`,
+  `./js/utils/contrast.js?v=${V}`,
+  `./js/utils/serialize.js?v=${V}`,
   './vendor/fontawesome/all.min.css',
   './vendor/fontawesome/fa-solid-900.woff2',
   './vendor/fontawesome/fa-regular-400.woff2',
@@ -43,9 +45,31 @@ self.addEventListener('activate', e => {
   self.clients.claim();
 });
 
+const FONT_ORIGINS = [
+  'https://fonts.googleapis.com',
+  'https://fonts.gstatic.com',
+];
+
 self.addEventListener('fetch', e => {
-  // Only cache same-origin requests; let Google Fonts and other CDNs pass through
-  if (!e.request.url.startsWith(self.location.origin)) return;
+  const url = e.request.url;
+
+  // Google Fonts — stale-while-revalidate so they work offline after first load
+  if (FONT_ORIGINS.some(o => url.startsWith(o))) {
+    e.respondWith(
+      caches.open(CACHE).then(async cache => {
+        const cached = await cache.match(e.request);
+        const fetchPromise = fetch(e.request).then(response => {
+          if (response.ok) cache.put(e.request, response.clone());
+          return response;
+        }).catch(() => null);
+        return cached || fetchPromise;
+      })
+    );
+    return;
+  }
+
+  // Same-origin assets — cache-first
+  if (!url.startsWith(self.location.origin)) return;
   e.respondWith(
     caches.match(e.request).then(cached => cached || fetch(e.request))
   );

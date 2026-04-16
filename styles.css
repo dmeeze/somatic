@@ -993,6 +993,14 @@ ul { list-style: none; }
 }
 .settings-reset-btn:hover { background: #fee2e2; }
 
+.settings-version-footer {
+  text-align: center;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  opacity: 0.6;
+  padding: 1.5rem 0 0.5rem;
+}
+
 /* Sortable */
 .sortable-ghost { opacity: 0.25; background: var(--accent-secondary); }
 
