@@ -1,0 +1,13 @@
+{
+  "name": "somatic-dev",
+  "private": true,
+  "scripts": {
+    "dev": "serve . -p 8080 -n",
+    "test:staging": "playwright test --config=playwright.config.js"
+  },
+  "devDependencies": {
+    "@playwright/test": "latest",
+    "playwright": "latest",
+    "serve": "latest"
+  }
+}
