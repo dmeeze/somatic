@@ -42,11 +42,15 @@ const DEFAULT_CONFIG = {
     fontSize: 'default',
     keepScreenOn: true,
     fullIconList: false,
+    needsHeading: 'I want to say',
+    showBtnLabel: 'Show',
+    showBtnIcon: 'fas fa-id-card',
+    settingsIcon: 'fas fa-cog',
   },
 };
 
 const STORAGE_KEY = 'somatic_config';
-const SCHEMA_VERSION = 6; // bump when DEFAULT_CONFIG shape changes incompatibly
+const SCHEMA_VERSION = 7; // bump when DEFAULT_CONFIG shape changes incompatibly
 
 /**
  * Migrate a v5 AppConfig to v6.
@@ -68,14 +72,37 @@ function _migrateV5toV6(config) {
   return { ...config, themes };
 }
 
+/**
+ * Migrate a v6 AppConfig to v7.
+ * Change: adds ui.needsHeading, ui.showBtnLabel, ui.showBtnIcon, ui.settingsIcon
+ */
+function _migrateV6toV7(config) {
+  return {
+    ...config,
+    ui: {
+      needsHeading: 'I want to say',
+      showBtnLabel: 'Show',
+      showBtnIcon: 'fas fa-id-card',
+      settingsIcon: 'fas fa-cog',
+      ...config.ui,
+    },
+  };
+}
+
 export function getConfig() {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
       const parsed = JSON.parse(stored);
       if (parsed._version === 5) {
-        // Migrate v5 → v6 instead of discarding
-        const migrated = _migrateV5toV6(parsed);
+        // Migrate v5 → v6 → v7
+        const migrated = _migrateV6toV7(_migrateV5toV6(parsed));
+        saveConfig(migrated);
+        return migrated;
+      }
+      if (parsed._version === 6) {
+        // Migrate v6 → v7
+        const migrated = _migrateV6toV7(parsed);
         saveConfig(migrated);
         return migrated;
       }
@@ -105,14 +132,12 @@ export function resetConfig() {
  * @type {{
  *   urgencyIndex: number,
  *   selectedNeedIds: string[],        // FIFO queue, max 3
- *   somethingElseText: string,        // custom text entered in the dialog
  *   fifoWarningShown: boolean,        // true once the 3-cap tooltip has been shown
  * }}
  */
 let _session = {
   urgencyIndex: DEFAULT_CONFIG.defaultUrgencyIndex,
   selectedNeedIds: [],
-  somethingElseText: '',
 };
 
 export function getSession() {

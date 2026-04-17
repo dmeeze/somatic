@@ -2,7 +2,7 @@
  * card.js — Full-screen communication card.
  *
  * Exports:
- *   show(urgencyLevel, selectedNeeds, somethingElseText)
+ *   show(urgencyLevel, selectedNeeds, onClose)
  *   hide()
  */
 
@@ -14,10 +14,9 @@ let _onClose = null;
  *
  * @param {object} urgencyLevel - { id, label, icon }
  * @param {object[]} selectedNeeds - Array of NeedCard objects (0–3)
- * @param {string} somethingElseText - Custom text for the "Something else" card
  * @param {function(): void} onClose - Called when the card is dismissed
  */
-export function show(urgencyLevel, selectedNeeds, somethingElseText, onClose) {
+export function show(urgencyLevel, selectedNeeds, onClose) {
   _onClose = onClose;
 
   const section = document.getElementById('card');
@@ -64,9 +63,7 @@ export function show(urgencyLevel, selectedNeeds, somethingElseText, onClose) {
 
       const label = document.createElement('span');
       label.className = 'card-need-label';
-      label.textContent = need.isSomethingElse && somethingElseText
-        ? somethingElseText
-        : need.label;
+      label.textContent = need.label;
 
       li.appendChild(icon);
       li.appendChild(label);

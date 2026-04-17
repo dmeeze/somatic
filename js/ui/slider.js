@@ -58,6 +58,7 @@ export function mountSlider(container, urgencyLevels, initialIndex, onChange, { 
       dot.style.transform = 'translateX(-50%) translateY(-50%)';
     } else {
       dot.style.left = `${pct}%`;
+      dot.style.transform = 'translateX(-50%) translateY(-50%)';
     }
     trackWrap.appendChild(dot);
   });

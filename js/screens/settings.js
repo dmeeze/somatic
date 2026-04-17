@@ -33,11 +33,11 @@ function _save(newConfig) {
 // ── Top-level render ──────────────────────────────────────────────────────────
 
 const _TABS = [
-  { id: 'urgency',      label: 'Urgency' },
+  { id: 'urgency',      label: 'Mood' },
   { id: 'needs',        label: 'Needs' },
   { id: 'theme',        label: 'Theme' },
   { id: 'app',          label: 'App' },
-  { id: 'instructions', label: 'Instructions' },
+  { id: 'about',        label: 'About' },
 ];
 
 function _render() {
@@ -97,15 +97,15 @@ function _renderBody(body) {
     case 'urgency':      _renderUrgencySection(body); break;
     case 'needs':        _renderNeedsSection(body); break;
     case 'theme':        _renderThemeTab(body); break;
-    case 'app':          _renderBackupSection(body); _renderPrefsSection(body); _renderResetSection(body); _renderVersionFooter(body); break;
-    case 'instructions': _renderInstructionsTab(body); break;
+    case 'app':          _renderBackupSection(body); _renderPrefsSection(body); _renderLabelsSection(body); _renderResetSection(body); break;
+    case 'about':        _renderAboutTab(body); break;
   }
 }
 
 // ── Urgency section ───────────────────────────────────────────────────────────
 
 function _renderUrgencySection(container) {
-  const sec = _makeSection('urgency-section', 'Urgency Levels');
+  const sec = _makeSection('urgency-section', 'Mood Levels');
   container.appendChild(sec);
 
   const list = document.createElement('div');
@@ -211,6 +211,32 @@ function _renderNeedsSection(container) {
 
   const sec = _makeSection('needs-section', 'Need Cards');
   container.appendChild(sec);
+
+  // "I want to say" heading editor
+  const headingRow = document.createElement('div');
+  headingRow.className = 'pref-row pref-row--stacked';
+
+  const headingLabel = document.createElement('label');
+  headingLabel.className = 'pref-label';
+  headingLabel.htmlFor = 'needs-heading-input';
+  headingLabel.textContent = 'Section heading';
+
+  const headingInput = document.createElement('input');
+  headingInput.type = 'text';
+  headingInput.id = 'needs-heading-input';
+  headingInput.className = 'edit-text-input';
+  headingInput.value = _config.ui.needsHeading || 'I want to say';
+  headingInput.maxLength = 60;
+  headingInput.placeholder = 'I want to say';
+  headingInput.addEventListener('change', () => {
+    const val = headingInput.value.trim() || 'I want to say';
+    headingInput.value = val;
+    _save({ ..._config, ui: { ..._config.ui, needsHeading: val } });
+  });
+
+  headingRow.appendChild(headingLabel);
+  headingRow.appendChild(headingInput);
+  sec.appendChild(headingRow);
 
   const list = document.createElement('div');
   list.className = 'settings-list';
@@ -417,6 +443,85 @@ function _renderPrefsSection(container) {
   iconRow.appendChild(iconLabelWrap);
   iconRow.appendChild(iconToggle);
   sec.appendChild(iconRow);
+}
+
+// ── Labels section ────────────────────────────────────────────────────────────
+
+function _renderLabelsSection(container) {
+  const sec = _makeSection('labels-section', 'Button Labels');
+  container.appendChild(sec);
+
+  // "Show" button label
+  const showLabelRow = document.createElement('div');
+  showLabelRow.className = 'pref-row pref-row--stacked';
+
+  const showLabelLabel = document.createElement('label');
+  showLabelLabel.className = 'pref-label';
+  showLabelLabel.htmlFor = 'show-btn-label-input';
+  showLabelLabel.textContent = '"Show" button label';
+
+  const showLabelInput = document.createElement('input');
+  showLabelInput.type = 'text';
+  showLabelInput.id = 'show-btn-label-input';
+  showLabelInput.className = 'edit-text-input';
+  showLabelInput.value = _config.ui.showBtnLabel || 'Show';
+  showLabelInput.maxLength = 20;
+  showLabelInput.placeholder = 'Show';
+  showLabelInput.addEventListener('change', () => {
+    const val = showLabelInput.value.trim() || 'Show';
+    showLabelInput.value = val;
+    _save({ ..._config, ui: { ..._config.ui, showBtnLabel: val } });
+  });
+
+  showLabelRow.appendChild(showLabelLabel);
+  showLabelRow.appendChild(showLabelInput);
+  sec.appendChild(showLabelRow);
+
+  // "Show" button icon
+  const showIconRow = document.createElement('div');
+  showIconRow.className = 'pref-row';
+
+  const showIconLabelEl = document.createElement('span');
+  showIconLabelEl.className = 'pref-label';
+  showIconLabelEl.textContent = '"Show" button icon';
+
+  const showIconBtn = document.createElement('button');
+  showIconBtn.className = 'label-icon-preview-btn';
+  showIconBtn.setAttribute('aria-label', 'Change "Show" button icon');
+  showIconBtn.innerHTML = `<i class="${_config.ui.showBtnIcon || 'fas fa-id-card'}" aria-hidden="true"></i>`;
+  showIconBtn.addEventListener('click', () => {
+    _showIconPicker(_config.ui.showBtnIcon || 'fas fa-id-card', (newIcon) => {
+      _save({ ..._config, ui: { ..._config.ui, showBtnIcon: newIcon } });
+      _reRenderSection();
+    });
+  });
+
+  showIconRow.appendChild(showIconLabelEl);
+  showIconRow.appendChild(showIconBtn);
+  sec.appendChild(showIconRow);
+
+  // Settings / config icon
+  const settingsIconRow = document.createElement('div');
+  settingsIconRow.className = 'pref-row';
+
+  const settingsIconLabelEl = document.createElement('span');
+  settingsIconLabelEl.className = 'pref-label';
+  settingsIconLabelEl.textContent = 'Settings icon';
+
+  const settingsIconBtn = document.createElement('button');
+  settingsIconBtn.className = 'label-icon-preview-btn';
+  settingsIconBtn.setAttribute('aria-label', 'Change settings icon');
+  settingsIconBtn.innerHTML = `<i class="${_config.ui.settingsIcon || 'fas fa-cog'}" aria-hidden="true"></i>`;
+  settingsIconBtn.addEventListener('click', () => {
+    _showIconPicker(_config.ui.settingsIcon || 'fas fa-cog', (newIcon) => {
+      _save({ ..._config, ui: { ..._config.ui, settingsIcon: newIcon } });
+      _reRenderSection();
+    });
+  });
+
+  settingsIconRow.appendChild(settingsIconLabelEl);
+  settingsIconRow.appendChild(settingsIconBtn);
+  sec.appendChild(settingsIconRow);
 }
 
 // ── Snackbar helper ───────────────────────────────────────────────────────────
@@ -660,51 +765,87 @@ function _renderThemeTab(container) {
   container.appendChild(wrap);
 }
 
-// ── Instructions tab ─────────────────────────────────────────────────────────
+// ── About tab ─────────────────────────────────────────────────────────────────
 
-function _renderInstructionsTab(container) {
+function _renderAboutTab(container) {
   const wrap = document.createElement('div');
-  wrap.className = 'instructions-tab';
+  wrap.className = 'about-tab';
 
-  const items = [
-    {
-      title: 'Setting urgency levels',
-      body: 'Drag the handles to reorder levels. Tap the pen icon to change the label or icon. Use the Default dropdown to choose which level is pre-selected when the app opens.',
-    },
-    {
-      title: 'Managing need cards',
-      body: 'Tap the eye icon to show or hide a need on the home screen. Hidden needs still appear in the "Something else…" picker. Tap the pen icon to edit, or the bin to delete. Tap "Add need" to create a new one.',
-    },
-    {
-      title: 'Using "Something else…"',
-      body: 'Tap the "Something else…" card on the home screen to pick from hidden needs or type a completely new need. New needs are saved to your list automatically.',
-    },
-    {
-      title: 'Showing the card',
-      body: 'Set the urgency level with the slider, select any needs, then tap "Show Card". Hold the card up for a teacher or carer to read.',
-    },
+  // ── App name + tagline ────────────────────────────────────────────────────
+  const header = document.createElement('div');
+  header.className = 'about-header';
+
+  const appName = document.createElement('h2');
+  appName.className = 'about-app-name';
+  appName.textContent = 'Somatic';
+
+  const tagline = document.createElement('p');
+  tagline.className = 'about-tagline';
+  tagline.textContent = 'A communication tool for when words are hard.';
+
+  header.appendChild(appName);
+  header.appendChild(tagline);
+
+  // ── Body copy ─────────────────────────────────────────────────────────────
+  const body = document.createElement('div');
+  body.className = 'about-body';
+
+  const paragraphs = [
+    'In D&D, Somatic spells are those you cast using gestures.  In this app, Somatic helps you quickly show someone how you\'re feeling and what you need, without having to find the words in the moment.',
+    'This app runs entirely on your device, and we never ever see any of your data.  We don\'t track anything.',
+    'We built this so you can customize it however you want.  Change the labels, the icons, make it yours.  You can always back up and restore or share your settings in the App tab as a big text blob of data.  Share with friends, carers, your other device, whatever.',
   ];
 
-  items.forEach(({ title, body }) => {
-    const item = document.createElement('div');
-    item.className = 'instructions-item';
-
-    const h3 = document.createElement('h3');
-    h3.textContent = title;
-
+  paragraphs.forEach(text => {
     const p = document.createElement('p');
-    p.textContent = body;
-
-    const placeholder = document.createElement('div');
-    placeholder.className = 'instructions-placeholder';
-    placeholder.innerHTML = '<i class="fas fa-film" aria-hidden="true"></i> Video coming soon';
-
-    item.appendChild(h3);
-    item.appendChild(p);
-    item.appendChild(placeholder);
-    wrap.appendChild(item);
+    p.textContent = text;
+    body.appendChild(p);
   });
 
+  // ── Install section ───────────────────────────────────────────────────────
+  const installSection = document.createElement('div');
+  installSection.className = 'about-install';
+
+  const installHeading = document.createElement('h3');
+  installHeading.className = 'about-install-heading';
+  installHeading.textContent = 'Installing as an app';
+
+  const installIntro = document.createElement('p');
+  installIntro.textContent = 'Somatic can be added to your home screen so it opens like a regular app — and works even without internet access:';
+
+  const installList = document.createElement('ul');
+  installList.className = 'about-install-list';
+
+  const steps = [
+    { platform: 'iPhone / iPad', instruction: 'tap the Share button in Safari, then Add to Home Screen.' },
+    { platform: 'Android (Chrome)', instruction: 'tap the three-dot menu, then Add to Home Screen or Install app.' },
+    { platform: 'Desktop (Chrome / Edge)', instruction: 'look for the install icon in the address bar, or use the menu → Install Somatic.' },
+  ];
+
+  steps.forEach(({ platform, instruction }) => {
+    const li = document.createElement('li');
+    const strong = document.createElement('strong');
+    strong.textContent = platform + ': ';
+    li.appendChild(strong);
+    li.appendChild(document.createTextNode(instruction));
+    installList.appendChild(li);
+  });
+
+  installSection.appendChild(installHeading);
+  installSection.appendChild(installIntro);
+  installSection.appendChild(installList);
+
+  // ── Version ───────────────────────────────────────────────────────────────
+  const version = window.APP_VERSION || 'dev';
+  const buildDate = window.APP_BUILD_DATE || '';
+  const versionEl = document.createElement('p');
+  versionEl.className = 'about-version';
+  versionEl.textContent = buildDate ? `Version ${version} — ${buildDate}` : `Version ${version}`;
+
+  wrap.appendChild(header);
+  wrap.appendChild(body);
+  wrap.appendChild(installSection);
+  wrap.appendChild(versionEl);
   container.appendChild(wrap);
 }
 

@@ -25,13 +25,13 @@ export function mountHome(initialConfig, onConfigChange) {
   const settingsBtn = document.createElement('button');
   settingsBtn.className = 'settings-btn';
   settingsBtn.setAttribute('aria-label', 'Open settings');
-  settingsBtn.innerHTML = '<i class="fas fa-cog" aria-hidden="true"></i>';
+  settingsBtn.innerHTML = `<i class="${config.ui.settingsIcon || 'fas fa-cog'}" aria-hidden="true"></i>`;
   settingsBtn.addEventListener('click', () => { window.location.hash = 'settings'; });
 
   // ── Slider region ─────────────────────────────────────────────────────────────
   const sliderRegion = document.createElement('section');
   sliderRegion.className = 'home-slider-region';
-  sliderRegion.setAttribute('aria-label', 'Urgency level');
+  sliderRegion.setAttribute('aria-label', 'Mood level');
 
   const sliderContainer = document.createElement('div');
   sliderContainer.className = 'slider-container';
@@ -44,7 +44,7 @@ export function mountHome(initialConfig, onConfigChange) {
 
   const needsHeading = document.createElement('h2');
   needsHeading.className = 'home-needs-heading';
-  needsHeading.textContent = 'I want to say';
+  needsHeading.textContent = config.ui.needsHeading || 'I want to say';
 
   const gridContainer = document.createElement('div');
   gridContainer.className = 'grid-container';
@@ -73,8 +73,8 @@ export function mountHome(initialConfig, onConfigChange) {
   showCardBtn.className = 'show-card-btn';
   showCardBtn.setAttribute('aria-label', 'Show communication card');
   showCardBtn.innerHTML = `
-    <i class="fas fa-id-card" aria-hidden="true"></i>
-    <span>Show</span>
+    <i class="${config.ui.showBtnIcon || 'fas fa-id-card'}" aria-hidden="true"></i>
+    <span>${config.ui.showBtnLabel || 'Show'}</span>
   `;
 
   // ── Bottom bar ────────────────────────────────────────────────────────────────
@@ -88,15 +88,6 @@ export function mountHome(initialConfig, onConfigChange) {
   section.appendChild(sliderRegion);
   section.appendChild(needsRegion);
   section.appendChild(bottomBar);
-
-  // ── Helpers ───────────────────────────────────────────────────────────────────
-  const somethingElseNeed = config.needs.find(n => n.isSomethingElse);
-
-  function _updateSeBtnState(selectedNeedIds, somethingElseText) {
-    const isSelected = somethingElseNeed && selectedNeedIds.includes(somethingElseNeed.id);
-    seBtn.classList.toggle('selected', !!isSelected);
-    seBtnLabel.textContent = somethingElseText || 'Something else';
-  }
 
   // ── Mount slider ──────────────────────────────────────────────────────────────
   const session = getSession();
@@ -122,25 +113,12 @@ export function mountHome(initialConfig, onConfigChange) {
 
   // Render initial selection state
   updateGridSelection(gridContainer, session.selectedNeedIds);
-  _updateSeBtnState(session.selectedNeedIds, session.somethingElseText);
 
   // ── SE button logic ───────────────────────────────────────────────────────────
   seBtn.addEventListener('click', async () => {
-    if (!somethingElseNeed) return;
     const s = getSession();
-
-    // If already selected — deselect and clear
-    if (s.selectedNeedIds.includes(somethingElseNeed.id)) {
-      const selected = toggleNeedSelection(somethingElseNeed.id, s.selectedNeedIds);
-      updateSession({ selectedNeedIds: selected, somethingElseText: '' });
-      _updateSeBtnState(selected, '');
-      return;
-    }
-
-    // Open sheet — show "others" (needs below "something else" in the array)
-    const seIdx = config.needs.findIndex(n => n.isSomethingElse);
-    const otherNeeds = seIdx !== -1 ? config.needs.slice(seIdx + 1) : [];
-    const result = await showSomethingElseSheet(otherNeeds);
+    const disabledNeeds = config.needs.filter(n => !n.isSomethingElse && !n.enabled);
+    const result = await showSomethingElseSheet(disabledNeeds);
     if (result === null) return;
 
     if (result.createNew) {
@@ -152,19 +130,16 @@ export function mountHome(initialConfig, onConfigChange) {
         enabled: true,
       };
       const needs = [...config.needs];
-      const insertIdx = seIdx !== -1 ? seIdx + 1 : needs.length;
-      needs.splice(insertIdx, 0, newNeed);
-      const newConfig = { ...config, needs };
-      const alreadySelected = s.selectedNeedIds.includes(somethingElseNeed.id);
-      const selected = alreadySelected ? s.selectedNeedIds : [...s.selectedNeedIds, somethingElseNeed.id];
-      updateSession({ selectedNeedIds: selected, somethingElseText: result.text });
-      _updateSeBtnState(selected, result.text);
-      saveConfig(newConfig);
-      onConfigChange(newConfig);
+      const seIdx = needs.findIndex(n => n.isSomethingElse);
+      needs.splice(seIdx !== -1 ? seIdx : needs.length, 0, newNeed);
+      const selected = toggleNeedSelection(newNeed.id, s.selectedNeedIds);
+      updateSession({ selectedNeedIds: selected });
+      saveConfig({ ...config, needs });
+      onConfigChange({ ...config, needs });
     } else {
-      const selected = toggleNeedSelection(somethingElseNeed.id, s.selectedNeedIds);
-      updateSession({ selectedNeedIds: selected, somethingElseText: result.text });
-      _updateSeBtnState(selected, result.text);
+      const selected = toggleNeedSelection(result.needId, s.selectedNeedIds);
+      updateSession({ selectedNeedIds: selected });
+      updateGridSelection(gridContainer, selected);
     }
   });
 
@@ -179,11 +154,10 @@ export function mountHome(initialConfig, onConfigChange) {
     document.body.classList.add('show-card-flash');
     setTimeout(() => {
       document.body.classList.remove('show-card-flash');
-      showCard(urgencyLevel, selectedNeeds, s.somethingElseText, () => {
-        updateSession({ selectedNeedIds: [], somethingElseText: '' });
+      showCard(urgencyLevel, selectedNeeds, () => {
+        updateSession({ selectedNeedIds: [] });
         updateGridSelection(gridContainer, []);
-        _updateSeBtnState([], '');
-      }, config);
+      });
     }, 150);
   });
 }

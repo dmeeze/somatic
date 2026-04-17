@@ -219,6 +219,7 @@ ul { list-style: none; }
   pointer-events: none;
   transition: left var(--transition-speed);
   border: 3px solid #fff;
+  z-index: 2;
 }
 
 /* The real range input — invisible but interactive */
@@ -281,6 +282,19 @@ ul { list-style: none; }
 }
 .slider-tick--first .slider-tick-label { text-align: left; }
 .slider-tick--last  .slider-tick-label { text-align: right; }
+
+/* Tab-stop dots on the slider track */
+.slider-dot {
+  position: absolute;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.7);
+  border: 1.5px solid rgba(0, 0, 0, 0.12);
+  pointer-events: none;
+  z-index: 1;
+}
 
 /* ── 6. Needs grid ─────────────────────────────────────────── */
 .grid-container {
@@ -367,11 +381,6 @@ ul { list-style: none; }
   user-select: none;
 }
 .se-btn:hover { background: var(--accent-secondary); }
-.se-btn.selected {
-  background: var(--accent-secondary);
-  color: var(--text-primary);
-  box-shadow: 0 2px 10px rgba(0,0,0,0.18);
-}
 .se-btn i { font-size: 1.2rem; }
 .se-btn-label {
   overflow: hidden;
@@ -968,6 +977,35 @@ ul { list-style: none; }
   color: #fff;
 }
 
+/* Stacked pref row (label above input) */
+.pref-row--stacked {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+.pref-row--stacked .edit-text-input { width: 100%; }
+
+/* Icon preview button in labels section */
+.label-icon-preview-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: calc(var(--radius) * 0.5);
+  border: 2px solid var(--accent-secondary);
+  background: var(--accent-secondary);
+  color: var(--text-primary);
+  font-size: 1.2rem;
+  flex-shrink: 0;
+  transition: border-color var(--transition-speed), background var(--transition-speed);
+}
+.label-icon-preview-btn:hover {
+  border-color: var(--accent-primary);
+  background: var(--accent-primary);
+  color: #fff;
+}
+
 /* Danger / reset */
 .btn-danger {
   background: #dc2626;
@@ -993,13 +1031,6 @@ ul { list-style: none; }
 }
 .settings-reset-btn:hover { background: #fee2e2; }
 
-.settings-version-footer {
-  text-align: center;
-  font-size: 0.72rem;
-  color: var(--text-muted);
-  opacity: 0.6;
-  padding: 1.5rem 0 0.5rem;
-}
 
 /* Sortable */
 .sortable-ghost { opacity: 0.25; background: var(--accent-secondary); }
@@ -1076,40 +1107,71 @@ ul { list-style: none; }
 }
 .theme-card.active .theme-card-tick { display: block; }
 
-/* Instructions tab */
-.instructions-tab {
-  padding: 24px 16px;
+/* About tab */
+.about-tab {
+  padding: 32px 16px 24px;
   display: flex;
   flex-direction: column;
   gap: 24px;
 }
-.instructions-item {
+.about-header {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.about-app-name {
+  font-family: var(--heading-font);
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.about-tagline {
+  font-size: 1rem;
+  color: var(--accent-primary);
+  line-height: 1.4;
+}
+.about-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.about-body p {
+  font-size: 0.92rem;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+.about-install {
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
-.instructions-item h3 {
+.about-install-heading {
   font-family: var(--heading-font);
   font-size: 1rem;
   font-weight: 700;
   color: var(--text-primary);
 }
-.instructions-item p {
+.about-install p {
+  font-size: 0.92rem;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+.about-install-list {
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.about-install-list li {
   font-size: 0.92rem;
   color: var(--text-muted);
   line-height: 1.5;
 }
-.instructions-placeholder {
-  aspect-ratio: 16/9;
-  background: var(--page-bg);
-  border-radius: var(--radius);
-  border: 2px dashed var(--accent-secondary);
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.about-version {
+  font-size: 0.72rem;
   color: var(--text-muted);
-  font-size: 0.9rem;
-  gap: 8px;
+  opacity: 0.6;
+  padding-top: 0.5rem;
 }
 
 /* Icon picker — full-screen modal overlay */

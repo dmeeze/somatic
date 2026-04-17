@@ -105,10 +105,10 @@ export function showConfirm({ title, message, confirmLabel = 'Confirm', danger =
  * Shows chips for any disabled needs, plus a text field for new needs.
  *
  * @param {object[]} disabledNeeds - needs with enabled: false (may be empty)
- * @returns {Promise<{text: string, createNew: boolean}|null>}
+ * @returns {Promise<{needId: string, text: string, createNew: false}|{text: string, createNew: true}|null>}
  *   null = cancelled
- *   { text, createNew: false } = picked an existing disabled need
- *   { text, createNew: true  } = typed a new need (caller should persist it)
+ *   { needId, text, createNew: false } = picked an existing disabled need
+ *   { text, createNew: true }          = typed a new need (caller should persist it)
  */
 export function showSomethingElseSheet(disabledNeeds = []) {
   return new Promise(resolve => {
@@ -145,7 +145,7 @@ export function showSomethingElseSheet(disabledNeeds = []) {
         chip.className = 'sheet-chip';
         chip.type = 'button';
         chip.innerHTML = `<i class="${need.icon}" aria-hidden="true"></i>${need.label}`;
-        chip.addEventListener('click', () => close({ text: need.label, createNew: false }));
+        chip.addEventListener('click', () => close({ needId: need.id, text: need.label, createNew: false }));
         chips.appendChild(chip);
       });
 
