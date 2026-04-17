@@ -33,7 +33,7 @@ const DEFAULT_CONFIG = {
     { id: 'n8', label: 'Something else\u2026',                          icon: 'fas fa-ellipsis-h',         isSomethingElse: true,  enabled: true },
   ],
 
-  activeThemeId: 'kawaii-pastels',
+  activeThemeId: 'bright-sunny',
 
   themes: BUILT_IN_THEMES,
 

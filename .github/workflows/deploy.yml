@@ -58,7 +58,7 @@ jobs:
         mkdir -p publish
 
         # Copy files preserving directory structure
-        cp index.html styles.css sw.js manifest.json icon.svg icon-maskable.svg publish/
+        cp index.html styles.css sw.js manifest.json icon.svg icon-maskable.svg version.json publish/
         cp -r js publish/
         cp -r vendor publish/
 
@@ -70,7 +70,7 @@ jobs:
 
         # Replace version and build date placeholders
         BUILD_DATE=$(date -u +"%Y-%m-%d")
-        sed -i "s|__VERSION__|${VERSION}|g" publish/sw.js publish/index.html
+        sed -i "s|__VERSION__|${VERSION}|g" publish/sw.js publish/index.html publish/version.json
         sed -i "s|__BUILD_DATE__|${BUILD_DATE}|g" publish/index.html
 
         echo "Publish directory contents:"
@@ -100,7 +100,8 @@ jobs:
           --cache-control "public, max-age=300, must-revalidate" \
           --include "*.html" \
           --include "manifest.json" \
-          --include "sw.js"
+          --include "sw.js" \
+          --include "version.json"
 
     - name: Invalidate CloudFront cache
       if: ${{ steps.vars.outputs.cloudfront_distribution_id != '' }}

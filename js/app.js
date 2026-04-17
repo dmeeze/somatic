@@ -82,3 +82,63 @@ window.addEventListener('orientationchange', () => {
   // orientationchange fires before dimensions settle; wait 200ms
   setTimeout(_onResize, 200);
 });
+
+// ── Update detection ──────────────────────────────────────────────────────────
+
+function _showUpdateBanner() {
+  if (document.querySelector('.update-banner')) return;
+  const banner = document.createElement('div');
+  banner.className = 'update-banner';
+  const msg = document.createElement('span');
+  msg.textContent = 'Somatic has been updated.';
+  const btn = document.createElement('button');
+  btn.className = 'update-banner-btn';
+  btn.textContent = 'Reload';
+  btn.addEventListener('click', () => location.reload());
+  banner.appendChild(msg);
+  banner.appendChild(btn);
+  document.body.appendChild(banner);
+}
+
+async function _checkVersion() {
+  if (!navigator.onLine) return;
+  try {
+    const res = await fetch('./version.json?_=' + Date.now(), { cache: 'no-store' });
+    if (!res.ok) return;
+    const data = await res.json();
+    const current = window.APP_VERSION;
+    // Skip check in dev (unreplaced token) or if versions match
+    if (!current || current === '__VERSION__' || !data.v || data.v === '__VERSION__') return;
+    if (data.v !== current) _showUpdateBanner();
+  } catch {}
+}
+
+// Check 3 s after boot and whenever the device comes back online
+setTimeout(_checkVersion, 3000);
+window.addEventListener('online', _checkVersion);
+setInterval(_checkVersion, 10 * 60 * 1000);
+
+// ── Service worker registration + update messaging ────────────────────────────
+
+if ('serviceWorker' in navigator) {
+  let _swReg;
+  navigator.serviceWorker.register('./sw.js')
+    .then(reg => {
+      _swReg = reg;
+      // Trigger a SW update check when coming online
+      window.addEventListener('online', () => _swReg?.update().catch(() => {}));
+    })
+    .catch(() => {});
+
+  // SW posts SW_UPDATED when a new version activates
+  navigator.serviceWorker.addEventListener('message', e => {
+    if (e.data?.type === 'SW_UPDATED') {
+      const current = window.APP_VERSION;
+      const incoming = e.data.version;
+      // Only banner if both tokens are replaced (i.e. production builds)
+      if (current && current !== '__VERSION__' && incoming && incoming !== '__VERSION__' && current !== incoming) {
+        _showUpdateBanner();
+      }
+    }
+  });
+}

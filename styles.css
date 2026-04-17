@@ -1163,6 +1163,7 @@ ul { list-style: none; }
 .icon-picker-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(54px, 1fr));
+  align-content: start;
   gap: 6px;
   padding: 14px;
   overflow-y: auto;
@@ -1213,8 +1214,72 @@ ul { list-style: none; }
   text-align: left;
 }
 .edit-icon-btn i { font-size: 1.3rem; width: 24px; text-align: center; }
-.edit-actions { display: flex; gap: 10px; }
+
+/* Inline mini icon picker inside edit modal */
+.edit-icon-mini-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(44px, 1fr));
+  gap: 5px;
+}
+.edit-icon-mini-item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: calc(var(--radius) * 0.4);
+  font-size: 1.15rem;
+  color: var(--text-primary);
+  background: var(--page-bg);
+  border: 2px solid var(--accent-secondary);
+  cursor: pointer;
+  transition: background var(--transition-speed);
+}
+.edit-icon-mini-item:hover { background: var(--accent-secondary); }
+.edit-icon-mini-item.active { background: var(--accent-primary); color: #fff; border-color: var(--accent-primary); }
+.edit-icon-mini-more { opacity: 0.6; }
+.edit-icon-mini-more:hover { opacity: 1; }
+
+.edit-actions { display: flex; gap: 10px; flex-wrap: wrap; }
 .edit-actions .btn { flex: 1; }
+.btn-make-default {
+  background: transparent;
+  border: 2px solid var(--accent-primary);
+  color: var(--accent-primary);
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+.btn-make-default--active {
+  background: transparent;
+  border-color: var(--text-muted);
+  color: var(--text-muted);
+  cursor: default;
+}
+
+/* "Something else" special row in Needs tab */
+.settings-something-else-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 12px;
+  margin-top: 8px;
+  border-radius: calc(var(--radius) * 0.5);
+  background: var(--page-bg);
+  border: 2px dashed var(--accent-secondary);
+}
+.settings-something-else-label-wrap { flex: 1; min-width: 0; }
+.settings-something-else-label {
+  display: block;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.settings-something-else-hint {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
 
 /* Reduce motion global */
 .reduce-motion * {
@@ -1519,4 +1584,35 @@ body[data-layout="tablet-landscape"] .needs-grid {
 body[data-layout="tablet-landscape"] .show-card-btn {
   font-size: 1.6rem;
   padding: 12px 32px;
+}
+
+/* ── Update banner ──────────────────────────────────────────────────────────── */
+.update-banner {
+  position: fixed;
+  bottom: max(16px, env(safe-area-inset-bottom));
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--text-primary);
+  color: var(--page-bg);
+  padding: 10px 14px;
+  border-radius: calc(var(--radius) * 0.6);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 0.9rem;
+  font-family: var(--body-font);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+  z-index: 9999;
+  white-space: nowrap;
+}
+.update-banner-btn {
+  background: var(--accent-primary);
+  color: #fff;
+  border: none;
+  border-radius: calc(var(--radius) * 0.4);
+  padding: 5px 14px;
+  font-size: 0.88rem;
+  font-family: var(--body-font);
+  font-weight: 700;
+  cursor: pointer;
 }

@@ -117,35 +117,6 @@ function _renderUrgencySection(container) {
     list.appendChild(_makeUrgencyRow(level, i));
   });
 
-  // Default level picker
-  const defaultRow = document.createElement('div');
-  defaultRow.className = 'settings-default-row';
-
-  const defaultLabel = document.createElement('label');
-  defaultLabel.className = 'settings-default-label';
-  defaultLabel.textContent = 'Default level:';
-  defaultLabel.htmlFor = 'default-urgency-select';
-
-  const select = document.createElement('select');
-  select.className = 'settings-default-select';
-  select.id = 'default-urgency-select';
-
-  _config.urgencyLevels.forEach((level, i) => {
-    const opt = document.createElement('option');
-    opt.value = i;
-    opt.textContent = level.label;
-    if (i === _config.defaultUrgencyIndex) opt.selected = true;
-    select.appendChild(opt);
-  });
-
-  select.addEventListener('change', () => {
-    _save({ ..._config, defaultUrgencyIndex: parseInt(select.value, 10) });
-  });
-
-  defaultRow.appendChild(defaultLabel);
-  defaultRow.appendChild(select);
-  sec.appendChild(defaultRow);
-
   // Drag to reorder
   _initSortable(list, (oldIndex, newIndex) => {
     const levels = [..._config.urgencyLevels];
@@ -194,7 +165,17 @@ function _makeUrgencyRow(level, index) {
   badge.style.display = isDefault ? '' : 'none';
 
   const editBtn = _makeIconBtn('fas fa-pen', 'Edit', () => {
-    _showEditModal({ label: level.label, icon: level.icon, title: 'Edit Urgency Level' }, (newLabel, newIcon) => {
+    const isDefault = index === _config.defaultUrgencyIndex;
+    _showEditModal({
+      label: level.label,
+      icon: level.icon,
+      title: 'Edit Urgency Level',
+      isDefault,
+      onMakeDefault: isDefault ? null : () => {
+        _save({ ..._config, defaultUrgencyIndex: index });
+        _reRenderSection();
+      },
+    }, (newLabel, newIcon) => {
       const levels = _config.urgencyLevels.map(l =>
         l.id === level.id ? { ...l, label: newLabel, icon: newIcon } : l
       );
@@ -236,13 +217,14 @@ function _renderNeedsSection(container) {
   list.id = 'needs-list';
   sec.appendChild(list);
 
-  _config.needs.forEach(need => {
+  const regularNeeds = _config.needs.filter(n => !n.isSomethingElse);
+  regularNeeds.forEach(need => {
     list.appendChild(_makeNeedRow(need, container));
   });
 
   const addBtn = document.createElement('button');
   addBtn.className = 'settings-add-btn';
-  addBtn.disabled = _config.needs.length >= 20;
+  addBtn.disabled = regularNeeds.length >= 20;
   addBtn.innerHTML = '<i class="fas fa-plus" aria-hidden="true"></i> Add need';
   addBtn.addEventListener('click', () => {
     _showEditModal({ label: '', icon: 'fas fa-star', title: 'New Need Card' }, (newLabel, newIcon) => {
@@ -259,11 +241,52 @@ function _renderNeedsSection(container) {
   });
   sec.appendChild(addBtn);
 
+  // "Something else" — always present, editable but separate
+  const somethingElse = _config.needs.find(n => n.isSomethingElse);
+  if (somethingElse) {
+    const seRow = document.createElement('div');
+    seRow.className = 'settings-something-else-row';
+
+    const seLabel = document.createElement('span');
+    seLabel.className = 'settings-something-else-label';
+    seLabel.textContent = '"Something else…"';
+
+    const seHint = document.createElement('span');
+    seHint.className = 'settings-something-else-hint';
+    seHint.textContent = 'Always available — edit label & icon';
+
+    const seLabelWrap = document.createElement('div');
+    seLabelWrap.className = 'settings-something-else-label-wrap';
+    seLabelWrap.appendChild(seLabel);
+    seLabelWrap.appendChild(seHint);
+
+    const seIcon = document.createElement('i');
+    seIcon.className = `row-icon ${somethingElse.icon}`;
+    seIcon.setAttribute('aria-hidden', 'true');
+
+    const seEditBtn = _makeIconBtn('fas fa-pen', 'Edit', () => {
+      _showEditModal({ label: somethingElse.label, icon: somethingElse.icon, title: 'Edit "Something Else"' }, (newLabel, newIcon) => {
+        const needs = _config.needs.map(n => n.isSomethingElse ? { ...n, label: newLabel, icon: newIcon } : n);
+        _save({ ..._config, needs });
+        _renderNeedsSection(container);
+      });
+    });
+
+    seRow.appendChild(seIcon);
+    seRow.appendChild(seLabelWrap);
+    seRow.appendChild(seEditBtn);
+    sec.appendChild(seRow);
+  }
+
   _initSortable(list, (oldIndex, newIndex) => {
-    const needs = [..._config.needs];
-    const [moved] = needs.splice(oldIndex, 1);
-    needs.splice(newIndex, 0, moved);
-    _save({ ..._config, needs });
+    const regularIds = regularNeeds.map(n => n.id);
+    const allNeeds = [..._config.needs];
+    // Find actual indices in full needs array
+    const fullOld = allNeeds.findIndex(n => n.id === regularIds[oldIndex]);
+    const fullNew = allNeeds.findIndex(n => n.id === regularIds[newIndex]);
+    const [moved] = allNeeds.splice(fullOld, 1);
+    allNeeds.splice(fullNew, 0, moved);
+    _save({ ..._config, needs: allNeeds });
     _renderNeedsSection(container);
   });
 }
@@ -341,23 +364,6 @@ function _makeNeedRow(need, sectionContainer) {
 function _renderPrefsSection(container) {
   const sec = _makeSection('prefs-section', 'Preferences');
   container.appendChild(sec);
-
-  // Reduce motion toggle
-  const motionRow = document.createElement('div');
-  motionRow.className = 'pref-row';
-
-  const motionLabel = document.createElement('label');
-  motionLabel.className = 'pref-label';
-  motionLabel.htmlFor = 'reduce-motion-toggle';
-  motionLabel.textContent = 'Reduce motion';
-
-  const toggle = _makeToggle('reduce-motion-toggle', _config.ui.reduceMotion, (checked) => {
-    _save({ ..._config, ui: { ..._config.ui, reduceMotion: checked } });
-  });
-
-  motionRow.appendChild(motionLabel);
-  motionRow.appendChild(toggle);
-  sec.appendChild(motionRow);
 
   // Font size
   const sizeRow = document.createElement('div');
@@ -640,14 +646,8 @@ function _renderThemeTab(container) {
     name.className = 'theme-card-name';
     name.textContent = theme.name;
 
-    // Active tick
-    const tick = document.createElement('span');
-    tick.className = 'theme-card-tick';
-    tick.innerHTML = '<i class="fas fa-check" aria-hidden="true"></i>';
-
     card.appendChild(swatch);
     card.appendChild(name);
-    card.appendChild(tick);
 
     card.addEventListener('click', () => {
       _save({ ..._config, activeThemeId: theme.id });
@@ -777,7 +777,7 @@ function _showIconPicker(currentIcon, onSelect) {
 
 // ── Edit modal ────────────────────────────────────────────────────────────────
 
-function _showEditModal({ label, icon, title }, onSave) {
+function _showEditModal({ label, icon, title, isDefault, onMakeDefault }, onSave) {
   let currentIcon = icon;
 
   const overlay = document.createElement('div');
@@ -810,28 +810,58 @@ function _showEditModal({ label, icon, title }, onSave) {
   labelGroup.appendChild(labelFieldLabel);
   labelGroup.appendChild(labelInput);
 
-  // Icon field
+  // Icon field — inline mini picker
   const iconGroup = document.createElement('div');
   iconGroup.className = 'edit-field-group';
   const iconFieldLabel = document.createElement('label');
   iconFieldLabel.className = 'edit-field-label';
   iconFieldLabel.textContent = 'Icon';
 
-  const iconBtn = document.createElement('button');
-  iconBtn.className = 'edit-icon-btn';
-  iconBtn.type = 'button';
-  iconBtn.innerHTML = `<i class="${currentIcon}" aria-hidden="true"></i><span>Change icon…</span>`;
-  iconBtn.addEventListener('click', () => {
-    _showIconPicker(currentIcon, (newIcon) => {
-      currentIcon = newIcon;
-      iconBtn.querySelector('i').className = newIcon;
-      // re-show overlay if it was closed by backdrop
-      if (!overlay.parentNode) document.body.appendChild(overlay);
-    });
-  });
+  const miniGrid = document.createElement('div');
+  miniGrid.className = 'edit-icon-mini-grid';
 
+  function renderMiniGrid() {
+    miniGrid.innerHTML = '';
+    const fullMode = !!_config.ui.fullIconList;
+    const iconList = fullMode ? ICONS_ALL : ICONS;
+    // Show up to 17 icons from the list + "..." for full picker
+    const preview = iconList.slice(0, 17);
+    preview.forEach(({ icon: ic }) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'edit-icon-mini-item' + (ic === currentIcon ? ' active' : '');
+      btn.setAttribute('aria-label', ic);
+      btn.innerHTML = `<i class="${ic}" aria-hidden="true"></i>`;
+      btn.addEventListener('click', () => {
+        currentIcon = ic;
+        renderMiniGrid();
+      });
+      miniGrid.appendChild(btn);
+    });
+    // "..." more button
+    const moreBtn = document.createElement('button');
+    moreBtn.type = 'button';
+    moreBtn.className = 'edit-icon-mini-item edit-icon-mini-more' + (!preview.some(i => i.icon === currentIcon) && currentIcon ? ' active' : '');
+    moreBtn.setAttribute('aria-label', 'More icons');
+    // If current icon is not in preview, show it
+    if (currentIcon && !preview.some(i => i.icon === currentIcon)) {
+      moreBtn.innerHTML = `<i class="${currentIcon}" aria-hidden="true"></i>`;
+    } else {
+      moreBtn.innerHTML = '<i class="fas fa-ellipsis-h" aria-hidden="true"></i>';
+    }
+    moreBtn.addEventListener('click', () => {
+      _showIconPicker(currentIcon, (newIcon) => {
+        currentIcon = newIcon;
+        renderMiniGrid();
+        if (!overlay.parentNode) document.body.appendChild(overlay);
+      });
+    });
+    miniGrid.appendChild(moreBtn);
+  }
+
+  renderMiniGrid();
   iconGroup.appendChild(iconFieldLabel);
-  iconGroup.appendChild(iconBtn);
+  iconGroup.appendChild(miniGrid);
 
   // Actions
   const actions = document.createElement('div');
@@ -841,6 +871,22 @@ function _showEditModal({ label, icon, title }, onSave) {
   cancelBtn.className = 'btn btn-secondary';
   cancelBtn.textContent = 'Cancel';
   cancelBtn.addEventListener('click', () => overlay.remove());
+
+  // "Make default" button (urgency levels only)
+  if (isDefault !== undefined) {
+    const defaultBtn = document.createElement('button');
+    defaultBtn.type = 'button';
+    defaultBtn.className = 'btn btn-make-default' + (isDefault ? ' btn-make-default--active' : '');
+    defaultBtn.textContent = isDefault ? 'Default ✓' : 'Make default';
+    defaultBtn.disabled = isDefault;
+    if (!isDefault && onMakeDefault) {
+      defaultBtn.addEventListener('click', () => {
+        overlay.remove();
+        onMakeDefault();
+      });
+    }
+    actions.appendChild(defaultBtn);
+  }
 
   const saveBtn = document.createElement('button');
   saveBtn.className = 'btn btn-primary';

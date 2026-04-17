@@ -38,11 +38,14 @@ self.addEventListener('install', e => {
 
 self.addEventListener('activate', e => {
   e.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
-    )
+    caches.keys()
+      .then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
+      .then(() => self.clients.claim())
+      .then(() =>
+        self.clients.matchAll({ includeUncontrolled: true, type: 'window' })
+          .then(cs => cs.forEach(c => c.postMessage({ type: 'SW_UPDATED', version: V })))
+      )
   );
-  self.clients.claim();
 });
 
 const FONT_ORIGINS = [
@@ -65,6 +68,12 @@ self.addEventListener('fetch', e => {
         return cached || fetchPromise;
       })
     );
+    return;
+  }
+
+  // version.json — always fetch from network so update checks are accurate
+  if (url.endsWith('/version.json') || url.includes('/version.json?')) {
+    e.respondWith(fetch(e.request).catch(() => new Response('{}', { headers: { 'Content-Type': 'application/json' } })));
     return;
   }
 
