@@ -13,24 +13,24 @@ import { BUILT_IN_THEMES } from './themes.js';
 /** @type {import('./types').AppConfig} */
 const DEFAULT_CONFIG = {
   urgencyLevels: [
-    { id: 'u1', label: 'I am happy!',                   icon: 'fas fa-smile-beam' },
-    { id: 'u2', label: 'I am ok',                        icon: 'fas fa-meh' },
-    { id: 'u3', label: 'I am stressed',                  icon: 'fas fa-grimace' },
-    { id: 'u4', label: 'I am about to have a meltdown',  icon: 'fas fa-sad-cry' },
-    { id: 'u5', label: 'I am having a meltdown',         icon: 'fas fa-dizzy' },
+    { id: 'u1', label: 'I am happy!',                   icon: 'fad fa-smile-beam' },
+    { id: 'u2', label: 'I am ok',                        icon: 'fad fa-meh' },
+    { id: 'u3', label: 'I am stressed',                  icon: 'fad fa-grimace' },
+    { id: 'u4', label: 'I am about to have a meltdown',  icon: 'fad fa-sad-cry' },
+    { id: 'u5', label: 'I am having a meltdown',         icon: 'fad fa-dizzy' },
   ],
 
   defaultUrgencyIndex: 2, // 0-based → "I am stressed"
 
   needs: [
-    { id: 'n1', label: 'I have a question but cannot ask it right now', icon: 'fas fa-question-circle',    isSomethingElse: false, enabled: true },
-    { id: 'n2', label: 'I need a quiet space',                          icon: 'fas fa-deaf',               isSomethingElse: false, enabled: true },
-    { id: 'n3', label: 'I need some time',                              icon: 'fas fa-hourglass-half',     isSomethingElse: false, enabled: true },
-    { id: 'n4', label: 'I need my self-soothing tools',                 icon: 'fas fa-hand-holding-heart', isSomethingElse: false, enabled: true },
-    { id: 'n5', label: 'I need to contact my parents / carer',          icon: 'fas fa-phone',              isSomethingElse: false, enabled: true },
-    { id: 'n6', label: 'I need water',                                  icon: 'fas fa-tint',               isSomethingElse: false, enabled: true },
-    { id: 'n7', label: 'I need to move / walk',                         icon: 'fas fa-walking',            isSomethingElse: false, enabled: true },
-    { id: 'n8', label: 'Something else\u2026',                          icon: 'fas fa-ellipsis-h',         isSomethingElse: true,  enabled: true },
+    { id: 'n1', label: 'I have a question but cannot ask it right now', icon: 'fad fa-question-circle',    isSomethingElse: false, enabled: true },
+    { id: 'n2', label: 'I need a quiet space',                          icon: 'fad fa-deaf',               isSomethingElse: false, enabled: true },
+    { id: 'n3', label: 'I need some time',                              icon: 'fad fa-hourglass-half',     isSomethingElse: false, enabled: true },
+    { id: 'n4', label: 'I need my self-soothing tools',                 icon: 'fad fa-hand-holding-heart', isSomethingElse: false, enabled: true },
+    { id: 'n5', label: 'I need to contact my parents / carer',          icon: 'fad fa-phone',              isSomethingElse: false, enabled: true },
+    { id: 'n6', label: 'I need water',                                  icon: 'fad fa-tint',               isSomethingElse: false, enabled: true },
+    { id: 'n7', label: 'I need to move / walk',                         icon: 'fad fa-walking',            isSomethingElse: false, enabled: true },
+    { id: 'n8', label: 'Something else\u2026',                          icon: 'fad fa-ellipsis-h',         isSomethingElse: true,  enabled: true },
   ],
 
   activeThemeId: 'bright-sunny',
@@ -44,13 +44,13 @@ const DEFAULT_CONFIG = {
     fullIconList: false,
     needsHeading: 'I want to say',
     showBtnLabel: 'Show',
-    showBtnIcon: 'fas fa-id-card',
-    settingsIcon: 'fas fa-cog',
+    showBtnIcon: 'fad fa-id-card',
+    settingsIcon: 'fad fa-cog',
   },
 };
 
 const STORAGE_KEY = 'somatic_config';
-const SCHEMA_VERSION = 7; // bump when DEFAULT_CONFIG shape changes incompatibly
+const SCHEMA_VERSION = 8; // bump when DEFAULT_CONFIG shape changes incompatibly
 
 /**
  * Migrate a v5 AppConfig to v6.
@@ -89,20 +89,44 @@ function _migrateV6toV7(config) {
   };
 }
 
+/**
+ * Migrate a v7 AppConfig to v8.
+ * Change: all user-facing icons switch from fas to fad (duotone).
+ */
+function _migrateV7toV8(config) {
+  const swapPrefix = (icon) => typeof icon === 'string' ? icon.replace(/^fas /, 'fad ') : icon;
+  return {
+    ...config,
+    urgencyLevels: (config.urgencyLevels || []).map(u => ({ ...u, icon: swapPrefix(u.icon) })),
+    needs: (config.needs || []).map(n => ({ ...n, icon: swapPrefix(n.icon) })),
+    ui: {
+      ...config.ui,
+      showBtnIcon: swapPrefix(config.ui?.showBtnIcon),
+      settingsIcon: swapPrefix(config.ui?.settingsIcon),
+    },
+  };
+}
+
 export function getConfig() {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
       const parsed = JSON.parse(stored);
       if (parsed._version === 5) {
-        // Migrate v5 → v6 → v7
-        const migrated = _migrateV6toV7(_migrateV5toV6(parsed));
+        // Migrate v5 → v6 → v7 → v8
+        const migrated = _migrateV7toV8(_migrateV6toV7(_migrateV5toV6(parsed)));
         saveConfig(migrated);
         return migrated;
       }
       if (parsed._version === 6) {
-        // Migrate v6 → v7
-        const migrated = _migrateV6toV7(parsed);
+        // Migrate v6 → v7 → v8
+        const migrated = _migrateV7toV8(_migrateV6toV7(parsed));
+        saveConfig(migrated);
+        return migrated;
+      }
+      if (parsed._version === 7) {
+        // Migrate v7 → v8
+        const migrated = _migrateV7toV8(parsed);
         saveConfig(migrated);
         return migrated;
       }
