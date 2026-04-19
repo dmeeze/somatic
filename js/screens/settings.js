@@ -1211,9 +1211,34 @@ function _renderAboutTab(container) {
   versionEl.className = 'about-version';
   versionEl.textContent = buildDate ? `Version ${version} — ${buildDate}` : `Version ${version}`;
 
+  // ── Force reload ──────────────────────────────────────────────────────────
+  const reloadSection = document.createElement('div');
+  reloadSection.className = 'about-reload';
+
+  const reloadDesc = document.createElement('p');
+  reloadDesc.className = 'about-reload-desc';
+  reloadDesc.textContent = 'If the app feels out of date, clear its cache and reload.';
+
+  const reloadBtn = document.createElement('button');
+  reloadBtn.className = 'settings-reset-btn';
+  reloadBtn.textContent = 'Force Reload';
+  reloadBtn.addEventListener('click', async () => {
+    reloadBtn.disabled = true;
+    reloadBtn.textContent = 'Reloading\u2026';
+    if ('caches' in window) {
+      const keys = await caches.keys();
+      await Promise.all(keys.map(k => caches.delete(k)));
+    }
+    window.location.reload();
+  });
+
+  reloadSection.appendChild(reloadDesc);
+  reloadSection.appendChild(reloadBtn);
+
   wrap.appendChild(header);
   wrap.appendChild(body);
   wrap.appendChild(installSection);
+  wrap.appendChild(reloadSection);
   wrap.appendChild(versionEl);
   container.appendChild(wrap);
 }

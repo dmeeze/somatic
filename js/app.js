@@ -128,6 +128,8 @@ window.addEventListener('orientationchange', () => {
 
 // ── Update detection ──────────────────────────────────────────────────────────
 
+let _swReg = null;
+
 function _showUpdateBanner() {
   if (document.querySelector('.update-banner')) return;
   const banner = document.createElement('div');
@@ -152,25 +154,36 @@ async function _checkVersion() {
     const current = window.APP_VERSION;
     // Skip check in dev (unreplaced token) or if versions match
     if (!current || current === '__VERSION__' || !data.v || data.v === '__VERSION__') return;
-    if (data.v !== current) _showUpdateBanner();
+    if (data.v !== current) {
+      _swReg?.update().catch(() => {});
+      _showUpdateBanner();
+    }
   } catch {}
 }
 
-// Check 3 s after boot and whenever the device comes back online
+function _triggerUpdateCheck() {
+  _checkVersion();
+  _swReg?.update().catch(() => {});
+}
+
+// Check 3 s after boot and on various resume signals
 setTimeout(_checkVersion, 3000);
-window.addEventListener('online', _checkVersion);
+window.addEventListener('online', _triggerUpdateCheck);
 setInterval(_checkVersion, 10 * 60 * 1000);
+// iOS PWA: app foregrounded from background (no navigation event fires)
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') _triggerUpdateCheck();
+});
+// iOS Safari: page restored from BFCache
+window.addEventListener('pageshow', e => {
+  if (e.persisted) _triggerUpdateCheck();
+});
 
 // ── Service worker registration + update messaging ────────────────────────────
 
 if ('serviceWorker' in navigator) {
-  let _swReg;
   navigator.serviceWorker.register('./sw.js')
-    .then(reg => {
-      _swReg = reg;
-      // Trigger a SW update check when coming online
-      window.addEventListener('online', () => _swReg?.update().catch(() => {}));
-    })
+    .then(reg => { _swReg = reg; })
     .catch(() => {});
 
   // SW posts SW_UPDATED when a new version activates

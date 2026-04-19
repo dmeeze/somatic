@@ -103,6 +103,10 @@ jobs:
           --include "sw.js" \
           --include "version.json"
 
+        # sw.js — no-store so iOS Safari always fetches fresh (it ignores the SW-update cache bypass spec)
+        aws s3 cp "publish/sw.js" "s3://${{ steps.vars.outputs.s3_bucket }}/${SUBDIR}/sw.js" \
+          --cache-control "no-store"
+
     - name: Invalidate CloudFront cache
       if: ${{ steps.vars.outputs.cloudfront_distribution_id != '' }}
       run: |
