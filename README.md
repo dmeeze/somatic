@@ -18,6 +18,8 @@ All three stages complete.
 - Inline icon mini-picker + full searchable picker
 - "Make default" in urgency edit dialog; "Something else" in separate section
 - Theme gallery (10 built-in themes; default: Bright Sunny)
+- Custom theme editor — colours, fonts (9 pairings with live Abc preview), font size, corner shape
+- Theme sharing via URL (`?import=<base64>`) — compact serialisation, imports on page load
 - Font size preference, full icon library toggle
 - Backup & restore (base64 text code)
 - localStorage persistence; factory reset

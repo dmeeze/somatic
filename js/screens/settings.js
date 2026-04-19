@@ -8,7 +8,8 @@ import {
   serializeConfig, deserializeConfig,
   savePreImportSnapshot, getPreImportSnapshot, clearPreImportSnapshot,
 } from '../data/config.js';
-import { showConfirm } from '../ui/dialog.js';
+import { showConfirm, showSnackbar } from '../ui/dialog.js';
+import { applyTheme, serializeTheme, FONT_PAIRINGS, SCALE_OPTIONS, RADIUS_OPTIONS } from '../utils/theme.js';
 import { ICONS } from '../data/icons.js';
 import { ICONS_ALL } from '../data/icons-all.js';
 
@@ -708,61 +709,429 @@ function _renderVersionFooter(container) {
 // ── Theme tab ─────────────────────────────────────────────────────────────────
 
 function _renderThemeTab(container) {
-  const wrap = document.createElement('div');
-  wrap.className = 'theme-gallery';
-
-  _config.themes.forEach(theme => {
-    const card = document.createElement('button');
-    card.className = 'theme-card' + (theme.id === _config.activeThemeId ? ' active' : '');
-    card.setAttribute('aria-label', `Select ${theme.name} theme`);
-    card.setAttribute('aria-pressed', theme.id === _config.activeThemeId ? 'true' : 'false');
-
-    // Colour swatch strip
-    const swatch = document.createElement('div');
-    swatch.className = 'theme-swatch';
-    swatch.style.background = theme.colors.pageBg;
-
-    // Accent dot
-    const accent = document.createElement('div');
-    accent.className = 'theme-swatch-accent';
-    accent.style.background = theme.colors.accentPrimary;
-
-    // Gradient bar (urgency colours)
-    const bar = document.createElement('div');
-    bar.className = 'theme-swatch-bar';
-    bar.style.background = `linear-gradient(to right, ${theme.colors.urgencyGradient.join(', ')})`;
-
-    // Card preview strip (mini card)
-    const cardStrip = document.createElement('div');
-    cardStrip.className = 'theme-swatch-card';
-    cardStrip.style.background = theme.colors.cardBg;
-
-    const cardDot = document.createElement('div');
-    cardDot.className = 'theme-swatch-card-dot';
-    cardDot.style.background = theme.colors.cardAccent;
-
-    cardStrip.appendChild(cardDot);
-    swatch.appendChild(accent);
-    swatch.appendChild(bar);
-    swatch.appendChild(cardStrip);
-
-    // Label
-    const name = document.createElement('span');
-    name.className = 'theme-card-name';
-    name.textContent = theme.name;
-
-    card.appendChild(swatch);
-    card.appendChild(name);
-
-    card.addEventListener('click', () => {
-      _save({ ..._config, activeThemeId: theme.id });
+  // New theme button
+  const actionsRow = document.createElement('div');
+  actionsRow.className = 'theme-tab-actions-row';
+  const newBtn = document.createElement('button');
+  newBtn.className = 'btn btn-secondary theme-new-btn';
+  newBtn.innerHTML = '<i class="fas fa-plus" aria-hidden="true"></i> New Theme';
+  newBtn.addEventListener('click', () => {
+    const base = _config.themes.find(t => t.id === _config.activeThemeId) || _config.themes[0];
+    _showThemeEditor({
+      ...JSON.parse(JSON.stringify(base)),
+      id: 'custom-' + Date.now(),
+      name: '',
+      builtIn: false,
+    }, { isNew: true }, saved => {
+      _save({ ..._config, themes: [..._config.themes, saved], activeThemeId: saved.id });
       _reRenderSection();
     });
+  });
+  actionsRow.appendChild(newBtn);
+  container.appendChild(actionsRow);
 
-    wrap.appendChild(card);
+  // Custom themes section
+  const customs = _config.themes.filter(t => !t.builtIn);
+  if (customs.length > 0) {
+    const sec = document.createElement('div');
+    sec.className = 'theme-tab-section';
+    const h = document.createElement('h3');
+    h.className = 'theme-tab-section-title';
+    h.textContent = 'My Themes';
+    sec.appendChild(h);
+    const gallery = document.createElement('div');
+    gallery.className = 'theme-gallery';
+    customs.forEach(t => gallery.appendChild(_makeThemeCard(t, true)));
+    sec.appendChild(gallery);
+    container.appendChild(sec);
+  }
+
+  // Built-in presets section
+  const presetsSec = document.createElement('div');
+  presetsSec.className = 'theme-tab-section';
+  const presetsTitle = document.createElement('h3');
+  presetsTitle.className = 'theme-tab-section-title';
+  presetsTitle.textContent = customs.length > 0 ? 'Presets' : '';
+  presetsSec.appendChild(presetsTitle);
+  const presetsGallery = document.createElement('div');
+  presetsGallery.className = 'theme-gallery';
+  _config.themes.filter(t => t.builtIn).forEach(t => presetsGallery.appendChild(_makeThemeCard(t, false)));
+  presetsSec.appendChild(presetsGallery);
+  container.appendChild(presetsSec);
+}
+
+function _makeThemeCard(theme, editable) {
+  const wrap = document.createElement('div');
+  wrap.className = 'theme-card-wrap';
+
+  const card = document.createElement('button');
+  card.className = 'theme-card' + (theme.id === _config.activeThemeId ? ' active' : '');
+  card.setAttribute('aria-label', `Select ${theme.name} theme`);
+  card.setAttribute('aria-pressed', theme.id === _config.activeThemeId ? 'true' : 'false');
+
+  const swatch = document.createElement('div');
+  swatch.className = 'theme-swatch';
+  swatch.style.background = theme.colors.pageBg;
+  const accent = document.createElement('div');
+  accent.className = 'theme-swatch-accent';
+  accent.style.background = theme.colors.accentPrimary;
+  const bar = document.createElement('div');
+  bar.className = 'theme-swatch-bar';
+  bar.style.background = `linear-gradient(to right, ${theme.colors.urgencyGradient.join(', ')})`;
+  const cardStrip = document.createElement('div');
+  cardStrip.className = 'theme-swatch-card';
+  cardStrip.style.background = theme.colors.cardBg;
+  const cardDot = document.createElement('div');
+  cardDot.className = 'theme-swatch-card-dot';
+  cardDot.style.background = theme.colors.cardAccent;
+  cardStrip.appendChild(cardDot);
+  swatch.appendChild(accent);
+  swatch.appendChild(bar);
+  swatch.appendChild(cardStrip);
+
+  const name = document.createElement('span');
+  name.className = 'theme-card-name';
+  name.textContent = theme.name;
+  const tick = document.createElement('span');
+  tick.className = 'theme-card-tick';
+  tick.textContent = '✓ Active';
+
+  card.appendChild(swatch);
+  card.appendChild(name);
+  card.appendChild(tick);
+  card.addEventListener('click', () => {
+    _save({ ..._config, activeThemeId: theme.id });
+    _reRenderSection();
+  });
+  wrap.appendChild(card);
+
+  const actions = document.createElement('div');
+  actions.className = 'theme-card-actions';
+
+  if (editable) {
+    const editBtn = _makeIconBtn('fas fa-pen', 'Edit theme', () => {
+      _showThemeEditor(JSON.parse(JSON.stringify(theme)), { isNew: false }, saved => {
+        const themes = _config.themes.map(t => t.id === saved.id ? saved : t);
+        _save({ ..._config, themes, activeThemeId: saved.id });
+        _reRenderSection();
+      });
+    });
+    const shareBtn = _makeIconBtn('fas fa-share-alt', 'Share theme', () => _shareTheme(theme));
+    const deleteBtn = _makeIconBtn('fas fa-trash', 'Delete theme', async () => {
+      const ok = await showConfirm({
+        title: `Delete "${theme.name}"?`,
+        message: 'This cannot be undone.',
+        confirmLabel: 'Delete',
+        danger: true,
+      });
+      if (!ok) return;
+      const themes = _config.themes.filter(t => t.id !== theme.id);
+      const activeId = theme.id === _config.activeThemeId
+        ? (themes.find(t => t.builtIn)?.id || themes[0]?.id || '')
+        : _config.activeThemeId;
+      _save({ ..._config, themes, activeThemeId: activeId });
+      _reRenderSection();
+    });
+    actions.appendChild(editBtn);
+    actions.appendChild(shareBtn);
+    actions.appendChild(deleteBtn);
+  } else {
+    const custBtn = document.createElement('button');
+    custBtn.className = 'theme-card-customize-btn';
+    custBtn.textContent = 'Customize';
+    custBtn.addEventListener('click', () => {
+      _showThemeEditor({
+        ...JSON.parse(JSON.stringify(theme)),
+        id: 'custom-' + Date.now(),
+        name: theme.name + ' (custom)',
+        builtIn: false,
+      }, { isNew: true }, saved => {
+        _save({ ..._config, themes: [..._config.themes, saved], activeThemeId: saved.id });
+        _reRenderSection();
+      });
+    });
+    actions.appendChild(custBtn);
+  }
+  wrap.appendChild(actions);
+  return wrap;
+}
+
+function _shareTheme(theme) {
+  const b64 = serializeTheme(theme);
+  const url = new URL(window.location.href);
+  url.search = '';
+  url.hash = '';
+  url.searchParams.set('import', b64);
+  const urlStr = url.toString();
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(urlStr).then(() => showSnackbar('Share URL copied to clipboard'));
+  } else {
+    const inp = document.createElement('input');
+    inp.value = urlStr;
+    document.body.appendChild(inp);
+    inp.select();
+    try { document.execCommand('copy'); } catch {}
+    document.body.removeChild(inp);
+    showSnackbar('Share URL copied to clipboard');
+  }
+}
+
+// ── Theme editor ──────────────────────────────────────────────────────────────
+
+function _showThemeEditor(themeToEdit, { isNew = false } = {}, onSave) {
+  const draft = JSON.parse(JSON.stringify(themeToEdit));
+  const originalTheme = _config.themes.find(t => t.id === _config.activeThemeId) || _config.themes[0];
+  const originalFontSize = document.documentElement.style.fontSize;
+
+  function _previewDraft() {
+    applyTheme(draft, _config.urgencyLevels.length);
+    const SIZES = { default: '16px', large: '19px', xlarge: '22px' };
+    document.documentElement.style.fontSize = SIZES[draft.typography?.scale || 'default'] || '16px';
+  }
+
+  const overlay = document.createElement('div');
+  overlay.className = 'theme-editor-overlay';
+
+  const sheet = document.createElement('div');
+  sheet.className = 'theme-editor-sheet';
+
+  // ── Header ──
+  const header = document.createElement('div');
+  header.className = 'theme-editor-header';
+
+  const cancelBtn = document.createElement('button');
+  cancelBtn.className = 'theme-editor-cancel-btn';
+  cancelBtn.setAttribute('aria-label', 'Cancel');
+  cancelBtn.innerHTML = '<i class="fas fa-arrow-left" aria-hidden="true"></i>';
+  cancelBtn.addEventListener('click', () => {
+    applyTheme(originalTheme, _config.urgencyLevels.length);
+    document.documentElement.style.fontSize = originalFontSize;
+    overlay.remove();
   });
 
-  container.appendChild(wrap);
+  const titleEl = document.createElement('span');
+  titleEl.className = 'theme-editor-title';
+  titleEl.textContent = isNew ? 'New Theme' : 'Edit Theme';
+
+  const headerRight = document.createElement('div');
+  headerRight.className = 'theme-editor-header-right';
+
+  const shareHeaderBtn = document.createElement('button');
+  shareHeaderBtn.className = 'btn btn-secondary theme-editor-share-btn';
+  shareHeaderBtn.innerHTML = '<i class="fas fa-share-alt" aria-hidden="true"></i>';
+  shareHeaderBtn.setAttribute('aria-label', 'Share');
+  shareHeaderBtn.addEventListener('click', () => {
+    draft.name = nameInput.value.trim() || draft.name || 'Custom';
+    _shareTheme(draft);
+  });
+
+  const saveBtn = document.createElement('button');
+  saveBtn.className = 'btn btn-primary';
+  saveBtn.textContent = 'Save';
+  saveBtn.addEventListener('click', () => {
+    const name = nameInput.value.trim();
+    if (!name) { nameInput.focus(); return; }
+    draft.name = name;
+    overlay.remove();
+    onSave(draft);
+  });
+
+  headerRight.appendChild(shareHeaderBtn);
+  headerRight.appendChild(saveBtn);
+  header.appendChild(cancelBtn);
+  header.appendChild(titleEl);
+  header.appendChild(headerRight);
+  sheet.appendChild(header);
+
+  // ── Body ──
+  const body = document.createElement('div');
+  body.className = 'theme-editor-body';
+
+  // Name
+  const nameSec = _makeEditorSection('Name');
+  const nameInput = document.createElement('input');
+  nameInput.type = 'text';
+  nameInput.className = 'edit-text-input';
+  nameInput.value = draft.name;
+  nameInput.maxLength = 64;
+  nameInput.placeholder = 'Theme name…';
+  nameSec.appendChild(nameInput);
+  body.appendChild(nameSec);
+
+  // Colors
+  const colorsSec = _makeEditorSection('Colors');
+  const colorGrid = document.createElement('div');
+  colorGrid.className = 'theme-editor-color-grid';
+  [
+    { key: 'pageBg',          label: 'Page background' },
+    { key: 'surfaceBg',       label: 'Surface' },
+    { key: 'textPrimary',     label: 'Text' },
+    { key: 'textMuted',       label: 'Text (muted)' },
+    { key: 'accentPrimary',   label: 'Accent' },
+    { key: 'accentSecondary', label: 'Accent (secondary)' },
+    { key: 'cardBg',          label: 'Card background' },
+    { key: 'cardText',        label: 'Card text' },
+    { key: 'cardAccent',      label: 'Card accent' },
+  ].forEach(({ key, label }) => {
+    colorGrid.appendChild(_makeColorRow(label, draft.colors[key], val => {
+      draft.colors[key] = val;
+      _previewDraft();
+    }));
+  });
+  colorsSec.appendChild(colorGrid);
+  body.appendChild(colorsSec);
+
+  // Urgency gradient
+  const urgSec = _makeEditorSection('Urgency Gradient');
+  const urgGrid = document.createElement('div');
+  urgGrid.className = 'theme-editor-urg-grid';
+  const urgBar = document.createElement('div');
+  urgBar.className = 'theme-editor-gradient-preview';
+  urgBar.style.background = `linear-gradient(to right, ${draft.colors.urgencyGradient.join(', ')})`;
+
+  ['Good', 'Mid', 'Bad'].forEach((label, i) => {
+    const col = document.createElement('div');
+    col.className = 'theme-editor-urg-col';
+    const lbl = document.createElement('span');
+    lbl.className = 'theme-editor-urg-label';
+    lbl.textContent = label;
+    const swatch = _makeColorSwatch(draft.colors.urgencyGradient[i], val => {
+      draft.colors.urgencyGradient[i] = val;
+      urgBar.style.background = `linear-gradient(to right, ${draft.colors.urgencyGradient.join(', ')})`;
+      _previewDraft();
+    });
+    col.appendChild(lbl);
+    col.appendChild(swatch);
+    urgGrid.appendChild(col);
+  });
+  urgSec.appendChild(urgGrid);
+  urgSec.appendChild(urgBar);
+  body.appendChild(urgSec);
+
+  // Font pairing
+  const fontSec = _makeEditorSection('Font');
+  const fontGrid = document.createElement('div');
+  fontGrid.className = 'theme-editor-font-grid';
+  FONT_PAIRINGS.forEach(({ id, label, headingFont }) => {
+    const btn = document.createElement('button');
+    btn.className = 'theme-editor-font-btn' + (draft.typography?.pairing === id ? ' active' : '');
+    const abc = document.createElement('span');
+    abc.className = 'theme-editor-font-abc';
+    abc.textContent = 'Abc';
+    abc.style.fontFamily = headingFont;
+    const lbl = document.createElement('span');
+    lbl.className = 'theme-editor-font-name';
+    lbl.textContent = label;
+    btn.appendChild(abc);
+    btn.appendChild(lbl);
+    btn.addEventListener('click', () => {
+      if (!draft.typography) draft.typography = {};
+      draft.typography.pairing = id;
+      fontGrid.querySelectorAll('.theme-editor-font-btn').forEach(b => b.classList.toggle('active', b === btn));
+      _previewDraft();
+    });
+    fontGrid.appendChild(btn);
+  });
+  fontSec.appendChild(fontGrid);
+  body.appendChild(fontSec);
+
+  // Font size
+  const scaleSec = _makeEditorSection('Font Size');
+  const scaleGroup = document.createElement('div');
+  scaleGroup.className = 'theme-editor-scale-group';
+  const SIZES = { default: '16px', large: '19px', xlarge: '22px' };
+  SCALE_OPTIONS.forEach(({ id, label }) => {
+    const btn = document.createElement('button');
+    btn.className = 'theme-editor-scale-btn' + ((draft.typography?.scale || 'default') === id ? ' active' : '');
+    const letter = document.createElement('span');
+    letter.className = 'theme-editor-scale-letter';
+    letter.textContent = 'A';
+    letter.style.fontSize = SIZES[id];
+    const lbl = document.createElement('span');
+    lbl.className = 'theme-editor-scale-label';
+    lbl.textContent = label;
+    btn.appendChild(letter);
+    btn.appendChild(lbl);
+    btn.addEventListener('click', () => {
+      if (!draft.typography) draft.typography = {};
+      draft.typography.scale = id;
+      scaleGroup.querySelectorAll('.theme-editor-scale-btn').forEach(b => b.classList.toggle('active', b === btn));
+      document.documentElement.style.fontSize = SIZES[id];
+    });
+    scaleGroup.appendChild(btn);
+  });
+  scaleSec.appendChild(scaleGroup);
+  body.appendChild(scaleSec);
+
+  // Shape / radius
+  const shapeSec = _makeEditorSection('Shape');
+  const shapeGroup = document.createElement('div');
+  shapeGroup.className = 'theme-editor-shape-group';
+  RADIUS_OPTIONS.forEach(({ id, label }) => {
+    const btn = document.createElement('button');
+    btn.className = 'theme-editor-shape-btn' + ((draft.shape?.radius || 'soft') === id ? ' active' : '');
+    const preview = document.createElement('div');
+    preview.className = `theme-editor-shape-preview theme-editor-shape-preview--${id}`;
+    const lbl = document.createElement('span');
+    lbl.className = 'theme-editor-shape-label';
+    lbl.textContent = label;
+    btn.appendChild(preview);
+    btn.appendChild(lbl);
+    btn.addEventListener('click', () => {
+      if (!draft.shape) draft.shape = {};
+      draft.shape.radius = id;
+      shapeGroup.querySelectorAll('.theme-editor-shape-btn').forEach(b => b.classList.toggle('active', b === btn));
+      _previewDraft();
+    });
+    shapeGroup.appendChild(btn);
+  });
+  shapeSec.appendChild(shapeGroup);
+  body.appendChild(shapeSec);
+
+  sheet.appendChild(body);
+  overlay.appendChild(sheet);
+  document.body.appendChild(overlay);
+
+  // Apply draft as live preview immediately
+  _previewDraft();
+}
+
+function _makeEditorSection(title) {
+  const sec = document.createElement('div');
+  sec.className = 'theme-editor-section';
+  if (title) {
+    const h = document.createElement('h3');
+    h.className = 'theme-editor-section-title';
+    h.textContent = title;
+    sec.appendChild(h);
+  }
+  return sec;
+}
+
+function _makeColorRow(label, value, onChange) {
+  const row = document.createElement('div');
+  row.className = 'theme-editor-color-row';
+  const lbl = document.createElement('span');
+  lbl.className = 'theme-editor-color-label';
+  lbl.textContent = label;
+  row.appendChild(lbl);
+  row.appendChild(_makeColorSwatch(value, onChange));
+  return row;
+}
+
+function _makeColorSwatch(value, onChange) {
+  const swatch = document.createElement('label');
+  swatch.className = 'theme-editor-color-swatch';
+  swatch.style.background = value;
+  const input = document.createElement('input');
+  input.type = 'color';
+  input.value = value;
+  input.addEventListener('input', () => {
+    swatch.style.background = input.value;
+    onChange(input.value);
+  });
+  swatch.appendChild(input);
+  return swatch;
 }
 
 // ── About tab ─────────────────────────────────────────────────────────────────
@@ -793,7 +1162,7 @@ function _renderAboutTab(container) {
   const paragraphs = [
     'In D&D, Somatic spells are those you cast using gestures.  In this app, Somatic helps you quickly show someone how you\'re feeling and what you need, without having to find the words in the moment.',
     'This app runs entirely on your device, and we never ever see any of your data.  We don\'t track anything.',
-    'We built this so you can customize it however you want.  Change the labels, the icons, make it yours.  You can always back up and restore or share your settings in the App tab as a big text blob of data.  Share with friends, carers, your other device, whatever.',
+    'We built this so you can customize it however you want.  Change the labels, the icons, make it yours.  You can create custom themes — choose your own colours, fonts, and shapes — and share them with others using a simple link.  You can also back up and restore your full settings in the App tab.',
   ];
 
   paragraphs.forEach(text => {

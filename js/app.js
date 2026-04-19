@@ -2,8 +2,9 @@
  * app.js — Entry point. Boot sequence, routing, wires everything together.
  */
 
-import { getConfig } from './data/config.js';
-import { applyTheme } from './utils/theme.js';
+import { getConfig, saveConfig } from './data/config.js';
+import { applyTheme, deserializeTheme } from './utils/theme.js';
+import { showConfirm, showSnackbar } from './ui/dialog.js';
 import { setLayoutMode } from './utils/layout.js';
 import { mountHome } from './screens/home.js';
 import { mountSettings } from './screens/settings.js';
@@ -36,6 +37,7 @@ function boot() {
 }
 
 boot();
+_handleThemeImport();
 
 // ── Hash-based routing ────────────────────────────────────────────────────────
 
@@ -59,6 +61,47 @@ window.addEventListener('hashchange', () => navigate(location.hash.replace('#', 
 const initial = location.hash.replace('#', '');
 navigate(initial || 'home');
 if (!location.hash) location.replace('#home');
+
+// ── Theme import via ?import= URL param ──────────────────────────────────────
+
+function _handleThemeImport() {
+  const params = new URLSearchParams(window.location.search);
+  const blob = params.get('import');
+  if (!blob) return;
+
+  // Remove param from URL immediately so refreshing doesn't re-trigger
+  const cleanUrl = new URL(window.location.href);
+  cleanUrl.searchParams.delete('import');
+  history.replaceState({}, '', cleanUrl.toString());
+
+  let theme;
+  try {
+    theme = deserializeTheme(blob);
+  } catch {
+    return;
+  }
+
+  showConfirm({
+    title: `Import "${theme.name}"?`,
+    message: 'This theme will be added to your custom themes and set as active.',
+    confirmLabel: 'Import',
+  }).then(ok => {
+    if (!ok) return;
+    theme.id = 'imported-' + Date.now();
+    const newConfig = {
+      ...config,
+      themes: [...config.themes, theme],
+      activeThemeId: theme.id,
+    };
+    if (theme.typography?.scale) {
+      newConfig.ui = { ...newConfig.ui, fontSize: theme.typography.scale };
+    }
+    saveConfig(newConfig);
+    onConfigChange(newConfig);
+    mountSettings(newConfig, onConfigChange);
+    showSnackbar(`Theme "${theme.name}" imported`);
+  });
+}
 
 // ── Layout mode change detection ─────────────────────────────────────────────
 // Remount home when layout mode changes (slider orientation and grid column

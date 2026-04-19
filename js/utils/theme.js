@@ -1,7 +1,5 @@
 /**
- * theme.js — applyTheme(theme, urgencyCount)
- * Writes all theme CSS custom properties to :root.
- * urgencyCount: how many --urgency-N vars to write (interpolated from 3-stop gradient).
+ * theme.js — applyTheme, serializeTheme, deserializeTheme, and picker constants.
  */
 
 const COLOR_MAP = {
@@ -34,6 +32,100 @@ const FONT_MAP = {
   handwritten: { heading: "'Caveat', cursive",                body: "'Nunito', sans-serif" },
 };
 
+// ── Public constants for the theme editor UI ──────────────────────────────────
+
+export const FONT_PAIRINGS = [
+  { id: 'friendly',    label: 'Friendly',    headingFont: "'Nunito', sans-serif" },
+  { id: 'ornate',      label: 'Ornate',      headingFont: "'Cinzel', serif" },
+  { id: 'editorial',   label: 'Editorial',   headingFont: "'Playfair Display', serif" },
+  { id: 'sport',       label: 'Sport',       headingFont: "'Barlow Condensed', sans-serif" },
+  { id: 'technical',   label: 'Technical',   headingFont: "'Exo 2', sans-serif" },
+  { id: 'cosmic',      label: 'Cosmic',      headingFont: "'Orbitron', sans-serif" },
+  { id: 'bubbly',      label: 'Bubbly',      headingFont: "'Comfortaa', sans-serif" },
+  { id: 'retro',       label: 'Retro',       headingFont: "'Pacifico', cursive" },
+  { id: 'handwritten', label: 'Handwritten', headingFont: "'Caveat', cursive" },
+];
+
+export const SCALE_OPTIONS = [
+  { id: 'default', label: 'Small',  px: '16px' },
+  { id: 'large',   label: 'Medium', px: '19px' },
+  { id: 'xlarge',  label: 'Large',  px: '22px' },
+];
+
+export const RADIUS_OPTIONS = [
+  { id: 'sharp', label: 'Sharp' },
+  { id: 'soft',  label: 'Soft'  },
+  { id: 'round', label: 'Round' },
+];
+
+// ── Compact theme serialization ───────────────────────────────────────────────
+// Format: { v:1, n:"name", c:[12 hex strings without #], f:pairing_idx, s:scale_idx, r:radius_idx }
+// Typical output: ~180 chars of JSON → ~240 chars of base64
+
+const _FONT_IDS   = FONT_PAIRINGS.map(p => p.id);
+const _SCALE_IDS  = SCALE_OPTIONS.map(s => s.id);
+const _RADIUS_IDS = RADIUS_OPTIONS.map(r => r.id);
+const _COLOR_ORDER = [
+  'pageBg', 'surfaceBg', 'textPrimary', 'textMuted',
+  'accentPrimary', 'accentSecondary', 'cardBg', 'cardText', 'cardAccent',
+];
+
+export function serializeTheme(theme) {
+  const c = _COLOR_ORDER.map(k => (theme.colors[k] || '#000000').replace(/^#/, ''));
+  const ug = (theme.colors.urgencyGradient || ['#000000', '#808080', '#ffffff']).map(h => h.replace(/^#/, ''));
+  const fi = _FONT_IDS.indexOf(theme.typography?.pairing);
+  const si = _SCALE_IDS.indexOf(theme.typography?.scale || 'default');
+  const ri = _RADIUS_IDS.indexOf(theme.shape?.radius || 'soft');
+  const payload = {
+    v: 1,
+    n: (theme.name || 'Custom').slice(0, 64),
+    c: [...c, ...ug],
+    f: fi >= 0 ? fi : 0,
+    s: si >= 0 ? si : 0,
+    r: ri >= 0 ? ri : 1,
+  };
+  return btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
+}
+
+export function deserializeTheme(b64) {
+  let p;
+  try {
+    p = JSON.parse(decodeURIComponent(escape(atob(b64.trim()))));
+  } catch {
+    throw new Error('Invalid theme code.');
+  }
+  if (!p || p.v !== 1 || !Array.isArray(p.c) || p.c.length !== 12) {
+    throw new Error('Invalid theme format.');
+  }
+  const c = p.c;
+  return {
+    id: 'imported-' + Date.now(),
+    name: String(p.n || 'Imported Theme').slice(0, 64),
+    builtIn: false,
+    colors: {
+      pageBg:          '#' + c[0],
+      surfaceBg:       '#' + c[1],
+      textPrimary:     '#' + c[2],
+      textMuted:       '#' + c[3],
+      accentPrimary:   '#' + c[4],
+      accentSecondary: '#' + c[5],
+      cardBg:          '#' + c[6],
+      cardText:        '#' + c[7],
+      cardAccent:      '#' + c[8],
+      urgencyGradient: ['#' + c[9], '#' + c[10], '#' + c[11]],
+    },
+    typography: {
+      pairing: _FONT_IDS[Math.min(Math.max(0, p.f || 0), _FONT_IDS.length - 1)],
+      scale:   _SCALE_IDS[Math.min(Math.max(0, p.s || 0), _SCALE_IDS.length - 1)],
+    },
+    shape: {
+      radius: _RADIUS_IDS[Math.min(Math.max(0, p.r || 0), _RADIUS_IDS.length - 1)],
+    },
+  };
+}
+
+// ── Colour interpolation ──────────────────────────────────────────────────────
+
 function _hexToRgb(hex) {
   const h = hex.replace('#', '');
   return [
@@ -55,9 +147,6 @@ function _lerpColor(a, b, t) {
 
 /**
  * Interpolate N evenly-spaced colours from a 3-stop [good, mid, bad] gradient.
- * @param {[string, string, string]} gradient3
- * @param {number} n
- * @returns {string[]}
  */
 export function interpolateUrgencyColors(gradient3, n) {
   const [good, mid, bad] = gradient3;
@@ -71,29 +160,25 @@ export function interpolateUrgencyColors(gradient3, n) {
 /**
  * Apply a Theme object to the document root's CSS custom properties.
  * @param {object} theme
- * @param {number} [urgencyCount=5] - Number of urgency levels to interpolate colours for.
+ * @param {number} [urgencyCount=5]
  */
 export function applyTheme(theme, urgencyCount = 5) {
   const root = document.documentElement;
   const { colors, shape, typography } = theme;
 
-  // Colour slots
   for (const [key, prop] of Object.entries(COLOR_MAP)) {
     if (colors[key]) root.style.setProperty(prop, colors[key]);
   }
 
-  // Urgency gradient — interpolate N stops from 3-stop gradient
   if (Array.isArray(colors.urgencyGradient) && colors.urgencyGradient.length === 3) {
     const stops = interpolateUrgencyColors(colors.urgencyGradient, urgencyCount);
     stops.forEach((hex, i) => root.style.setProperty(`--urgency-${i}`, hex));
   }
 
-  // Shape
   if (shape?.radius && RADIUS_MAP[shape.radius]) {
     root.style.setProperty('--radius', RADIUS_MAP[shape.radius]);
   }
 
-  // Typography
   const fonts = FONT_MAP[typography?.pairing] ?? FONT_MAP.friendly;
   root.style.setProperty('--heading-font', fonts.heading);
   root.style.setProperty('--body-font', fonts.body);
